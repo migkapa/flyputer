@@ -1,0 +1,351 @@
+"""
+export3d.py — turn a stimulation into 3D web-visualization data.
+
+  build_data(query, limit, dur_ms) -> dict     (reused by server.py for the live UI)
+
+CLI:
+  .venv/bin/python export3d.py                       # default: olfactory
+  .venv/bin/python export3d.py "mushroom body" 60 250
+writes fly3d_data.js and opens fly3d.html (the standalone 3D view).
+"""
+import os
+import sys
+import json
+import webbrowser
+from collections import Counter
+
+import numpy as np
+import pandas as pd
+
+import flysim
+import energy
+
+_POS = None
+
+
+def _positions():
+    """root_id -> (x, y, z) brain coordinates, cached after first read."""
+    global _POS
+    if _POS is None:
+        p = pd.read_csv(flysim.ANN_FILE, sep="\t",
+                        usecols=["root_id", "pos_x", "pos_y", "pos_z"]).dropna()
+        p["root_id"] = p["root_id"].astype("int64")
+        # positions are voxels at 4x4x40 nm; convert to nm for true brain proportions
+        _POS = {int(r): (x * 4.0, y * 4.0, z * 40.0) for r, x, y, z in
+                zip(p.root_id, p.pos_x, p.pos_y, p.pos_z)}
+    return _POS
+
+
+_TF = None
+_GHOST = None
+
+
+def _transform():
+    """Global center + scale from ALL neuron positions, so the active circuit sits in
+    its true place inside the full brain."""
+    global _TF
+    if _TF is None:
+        a = np.array(list(_positions().values()), dtype=np.float64)
+        c = a.mean(axis=0)
+        s = 90.0 / (np.abs(a - c).max() + 1e-9)
+        _TF = (c, s)
+    return _TF
+
+
+def _ghost(step=7):
+    """Flat [x,y,z, ...] of a downsampled full-brain point cloud (inactive context)."""
+    global _GHOST
+    if _GHOST is None:
+        P = _positions()
+        c, s = _transform()
+        pts = []
+        for k in list(P.keys())[::step]:
+            x, y, z = P[k]
+            pts += [round((x - c[0]) * s, 1), round((y - c[1]) * s, 1),
+                    round((z - c[2]) * s, 1)]
+        _GHOST = pts
+    return _GHOST
+
+
+_CV = None
+_HERO = {}
+_HERO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hero_cache")
+
+
+def _hero_arbor(rid, n_points=2200):
+    """Fetch a neuron mesh (token-free) and return ~n_points surface points in global
+    coords as a flat [x,y,z,...] list. Cached in memory + on disk; returns None if
+    cloud-volume is missing or the fetch fails (so the rest of the app still works)."""
+    global _CV
+    rid = int(rid)
+    if rid in _HERO:
+        return _HERO[rid]
+    cache = os.path.join(_HERO_DIR, f"{rid}.json")
+    if os.path.exists(cache):
+        try:
+            with open(cache) as f:
+                _HERO[rid] = json.load(f)
+            return _HERO[rid]
+        except Exception:
+            pass
+    try:
+        import cloudvolume as cv
+        if _CV is None:
+            _CV = cv.CloudVolume("precomputed://gs://flywire_v141_m783",
+                                 use_https=True, progress=False)
+        m = _CV.mesh.get(rid)
+        m = m[rid] if isinstance(m, dict) else m
+        v = np.asarray(m.vertices, dtype=np.float64)
+        if len(v) == 0:
+            _HERO[rid] = None
+            return None
+        if len(v) > n_points:                      # stride-sample across the arbor
+            v = v[::max(1, len(v) // n_points)][:n_points]
+        c, s = _transform()
+        v = (v - c) * s
+        flat = [round(float(x), 2) for x in v.reshape(-1)]
+        _HERO[rid] = flat
+        try:
+            os.makedirs(_HERO_DIR, exist_ok=True)
+            with open(cache, "w") as f:
+                json.dump(flat, f)
+        except Exception:
+            pass
+        return flat
+    except Exception:
+        _HERO[rid] = None
+        return None
+
+
+def warm():
+    """Initialize cloud-volume up front so the first hero fetch isn't slow."""
+    global _CV
+    try:
+        import cloudvolume as cv
+        if _CV is None:
+            _CV = cv.CloudVolume("precomputed://gs://flywire_v141_m783",
+                                 use_https=True, progress=False)
+    except Exception:
+        pass
+
+
+def resting_data():
+    """Starter scene: the whole brain at rest, nothing firing."""
+    return {
+        "title": "FlyWire brain (at rest)",
+        "query": "", "dur_ms": 200,
+        "n_input": 0, "n_downstream": 0, "top_downstream_types": [],
+        "neurons": [], "edges": [], "ghost": _ghost(), "heroes": [],
+    }
+
+
+def build_data(query="olfactory", limit=40, dur_ms=200, heroes=6):
+    """Stimulate `query` neurons and return a JSON-able dict for the 3D viewer."""
+    found = flysim.find_neurons(query, limit=limit)["neurons"]
+    if not found:
+        raise ValueError(f"No neurons matched '{query}'. Try: olfactory, sugar, "
+                         "'mushroom body', gustatory, descending, motor.")
+    ids = [n["root_id"] for n in found]
+    sset = set(ids)
+    nodes, idx, W = flysim.build_subcircuit(ids, hops=2)
+    counts, st, si = flysim.run_lif(nodes, idx, W, ids, dur_ms=dur_ms, record=True)
+
+    P = _positions()
+    active = [r for r in range(len(nodes)) if counts[r] > 0 and nodes[r] in P]
+    row2new = {r: k for k, r in enumerate(active)}
+
+    spk = [[] for _ in active]
+    for t, r in zip(st.tolist(), si.tolist()):
+        k = row2new.get(int(r))
+        if k is not None:
+            spk[k].append(round(float(t), 1))
+
+    c, s = _transform()
+    xyz = np.array([P[nodes[r]] for r in active], dtype=np.float64)
+    if len(xyz):
+        xyz = (xyz - c) * s
+
+    neurons, dtypes = [], Counter()
+    for k, r in enumerate(active):
+        nid = nodes[r]
+        ts = spk[k]
+        if len(ts) > 120:
+            ts = ts[::max(1, len(ts) // 120)]
+        role = "input" if nid in sset else "downstream"
+        lab = flysim.LABEL.get(nid, "?")
+        if role == "downstream":
+            dtypes[lab] += int(counts[r])
+        neurons.append({"x": round(float(xyz[k, 0]), 2),
+                        "y": round(float(xyz[k, 1]), 2),
+                        "z": round(float(xyz[k, 2]), 2),
+                        "role": role, "type": lab, "t": ts})
+
+    edges = []
+    for post, pre in np.argwhere(W != 0):
+        a, b = row2new.get(int(pre)), row2new.get(int(post))
+        if a is not None and b is not None:
+            edges.append([a, b])
+            if len(edges) >= 4000:
+                break
+
+    # hero neurons: real 3D arbors for the inputs + most-active downstream cells
+    hero_data = []
+    if heroes:
+        inp_rows = [r for r in active if nodes[r] in sset][:max(1, heroes // 2)]
+        down_rows = sorted((r for r in active if nodes[r] not in sset),
+                           key=lambda r: -int(counts[r]))[:heroes - len(inp_rows)]
+        for r in inp_rows + down_rows:
+            pts = _hero_arbor(nodes[r])
+            if pts:
+                k = row2new[r]
+                hero_data.append({"role": neurons[k]["role"], "type": neurons[k]["type"],
+                                  "t": neurons[k]["t"], "pts": pts})
+
+    ev = energy.synaptic_events(counts, W)
+    return {
+        "title": f"Fly brain: '{query}' response",
+        "query": query, "dur_ms": dur_ms,
+        "n_input": sum(1 for n in neurons if n["role"] == "input"),
+        "n_downstream": sum(1 for n in neurons if n["role"] == "downstream"),
+        "top_downstream_types": [t for t, _ in dtypes.most_common(6)],
+        "neurons": neurons, "edges": edges, "ghost": _ghost(), "heroes": hero_data,
+        "energy": energy.summary(ev),
+    }
+
+
+def build_gate_scene(gate, phase_ms=200):
+    """3D scene for a logic gate: A/B/O as real arbors, cycling through the four input
+    combinations on one looped timeline, plus the truth table and energy ledger.
+    `gate` is a dict from logic.find_gate()."""
+    A, B, O = gate["A"], gate["B"], gate["O"]
+    nodes = [A, B, O]
+    idx = {n: i for i, n in enumerate(nodes)}
+    W = np.zeros((3, 3), dtype=np.float32)
+    W[idx[O], idx[A]] = gate["wA"] * gate["sA"]
+    W[idx[O], idx[B]] = gate["wB"] * gate["sB"]
+
+    P = _positions()
+    c, s = _transform()
+    phases = [[], [A], [B], [A, B]]            # 00, 10, 01, 11
+    spk = {A: [], B: [], O: []}
+    total = np.zeros(3)
+    for p, drive in enumerate(phases):
+        sp, st, si = flysim.run_lif(nodes, idx, W, drive, dur_ms=phase_ms,
+                                    gain=gate["gain"], record=True)
+        total += sp
+        off = p * phase_ms
+        for t, ni in zip(st.tolist(), si.tolist()):
+            spk[nodes[int(ni)]].append(round(float(t) + off, 1))
+
+    def _lab(n):
+        v = flysim.LABEL.get(n, "")
+        return v if v and v != "?" else ("cell " + str(n)[-5:])
+
+    roles = {A: "input", B: "input", O: "output"}
+    neurons, heroes = [], []
+    for n in nodes:
+        pts = _hero_arbor(n)                    # mesh exists token-free for any proofread cell
+        if pts:
+            x, y, z = np.asarray(pts, dtype=np.float64).reshape(-1, 3).mean(axis=0)
+        elif n in P:
+            x, y, z = (np.array(P[n]) - c) * s
+        else:
+            continue
+        lab = _lab(n)
+        neurons.append({"x": round(float(x), 2), "y": round(float(y), 2),
+                        "z": round(float(z), 2), "role": roles[n], "type": lab, "t": spk[n]})
+        if pts:
+            heroes.append({"role": roles[n], "type": lab, "t": spk[n], "pts": pts})
+
+    labels = {"A": _lab(A), "B": _lab(B), "O": _lab(O)}
+    ev = energy.synaptic_events(total, W)
+    return {
+        "title": "Fly-brain logic gate: %s" % gate["kind"],
+        "query": gate["kind"], "dur_ms": phase_ms * 4,
+        "n_input": 2, "n_downstream": 1, "top_downstream_types": [labels["O"]],
+        "neurons": neurons, "edges": [], "ghost": _ghost(), "heroes": heroes,
+        "energy": energy.summary(ev),
+        "gate": {"kind": gate["kind"], "labels": labels, "truth": gate["truth"],
+                 "phase_ms": phase_ms, "rows": [[0, 0], [1, 0], [0, 1], [1, 1]]},
+    }
+
+
+def build_math_scene(x, y, op="add", phase_ms=200):
+    """3D scene of the fly-neuron 'calculator' computing x (+ or x) y: the gate motif
+    neurons as arbors, plus the binary result and the energy the computation cost."""
+    import flymath
+    res = flymath.compute(int(x), int(y), op)
+    gates = flymath._gates()
+    c, s = _transform()
+    P = _positions()
+    fire = {"AND": (1, 1), "OR": (1, 0), "AND-NOT": (1, 0)}   # an input that lights each gate
+
+    neurons, heroes, seen = [], [], set()
+    for kind, g in gates.items():
+        nodes = [g["A"], g["B"], g["O"]]
+        idx = {n: i for i, n in enumerate(nodes)}
+        W = np.zeros((3, 3), dtype=np.float32)
+        W[idx[g["O"]], idx[g["A"]]] = g["wA"] * g["sA"]
+        W[idx[g["O"]], idx[g["B"]]] = g["wB"] * g["sB"]
+        drive = [n for n, on in zip((g["A"], g["B"]), fire[kind]) if on]
+        sp, st, si = flysim.run_lif(nodes, idx, W, drive, dur_ms=phase_ms,
+                                    gain=g["gain"], record=True)
+        spk = {n: [] for n in nodes}
+        for t, ni in zip(st.tolist(), si.tolist()):
+            spk[nodes[int(ni)]].append(round(float(t), 1))
+        roles = {g["A"]: "input", g["B"]: "input", g["O"]: "output"}
+        for n in nodes:
+            if n in seen:
+                continue
+            seen.add(n)
+            pts = _hero_arbor(n)
+            if pts:
+                xx, yy, zz = np.asarray(pts, dtype=np.float64).reshape(-1, 3).mean(axis=0)
+            elif n in P:
+                xx, yy, zz = (np.array(P[n]) - c) * s
+            else:
+                continue
+            lab = flysim.LABEL.get(n, "")
+            lab = lab if lab and lab != "?" else ("cell " + str(n)[-5:])
+            neurons.append({"x": round(float(xx), 2), "y": round(float(yy), 2),
+                            "z": round(float(zz), 2), "role": roles[n], "type": lab, "t": spk[n]})
+            if pts:
+                heroes.append({"role": roles[n], "type": lab, "t": spk[n], "pts": pts})
+
+    return {
+        "title": "Fly brain computing: %d %s %d = %d" % (x, res["sym"], y, res["result"]),
+        "query": "math", "dur_ms": phase_ms,
+        "n_input": 0, "n_downstream": 0, "top_downstream_types": [],
+        "neurons": neurons, "edges": [], "ghost": _ghost(), "heroes": heroes,
+        "energy": energy.summary(res["events"]),
+        "math": {"x": x, "y": y, "result": res["result"], "sym": res["sym"],
+                 "x_bin": res["x_bin"], "y_bin": res["y_bin"],
+                 "result_bin": res["result_bin"], "gate_ops": res["gate_ops"]},
+    }
+
+
+def export3d(query="olfactory", limit=40, dur_ms=200, out="fly3d_data.js",
+             open_browser=True):
+    data = build_data(query, limit, dur_ms)
+    with open(out, "w") as f:
+        f.write("window.FLY_DATA = ")
+        json.dump(data, f, separators=(",", ":"))
+        f.write(";")
+    nspk = sum(len(n["t"]) for n in data["neurons"])
+    print(f"wrote {out}: {len(data['neurons'])} neurons, {len(data['edges'])} edges, "
+          f"{nspk} spikes")
+    html = os.path.abspath("fly3d.html")
+    print(f"open in a browser: file://{html}")
+    if open_browser and os.path.exists(html):
+        webbrowser.open("file://" + html)
+    return data
+
+
+if __name__ == "__main__":
+    q = sys.argv[1] if len(sys.argv) > 1 else "olfactory"
+    lim = int(sys.argv[2]) if len(sys.argv) > 2 else 40
+    dur = float(sys.argv[3]) if len(sys.argv) > 3 else 200
+    try:
+        export3d(q, lim, dur)
+    except ValueError as e:
+        sys.exit(str(e))

@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlyWire - chat with a fly brain</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #05060a; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    color: #e9eefc; }
+  #wrap { display: flex; height: 100vh; }
+  #viz { position: relative; flex: 1; min-width: 0; }
+  #viz canvas { display: block; }
+  #title { position: absolute; top: 14px; left: 16px; pointer-events: none; }
+  #title h1 { margin: 0; font-size: 15px; font-weight: 650; }
+  #title p { margin: 3px 0 0; font-size: 12px; color: #93a0c4; }
+  #legend { margin-top: 8px; font-size: 11.5px; display: flex; gap: 12px; }
+  #legend span { display: inline-flex; align-items: center; gap: 5px; color: #c3cce6; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+  #hud { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+    width: min(560px, 90%); background: rgba(14,18,30,.72); backdrop-filter: blur(8px);
+    border: 1px solid rgba(120,140,190,.18); border-radius: 11px; padding: 8px 13px;
+    display: flex; align-items: center; gap: 11px; font-size: 12.5px; }
+  #play { cursor: pointer; border: none; width: 32px; height: 32px; flex: none;
+    border-radius: 50%; background: #2f6df6; color: #fff; font-size: 13px; }
+  #scrub { flex: 1; accent-color: #2f6df6; }
+  #time { font-variant-numeric: tabular-nums; min-width: 78px; color: #aeb9d8; }
+  #hud label { display: inline-flex; align-items: center; gap: 5px; color: #aeb9d8;
+    white-space: nowrap; cursor: pointer; }
+  #empty { position: absolute; inset: 0; display: grid; place-items: center;
+    color: #6f7ca0; font-size: 13px; text-align: center; }
+  #tip { position: absolute; pointer-events: none; background: rgba(10,14,24,.92);
+    border: 1px solid rgba(120,140,190,.25); border-radius: 6px; padding: 3px 7px;
+    color: #e6ebf8; font-size: 11.5px; display: none; transform: translate(12px,-50%); }
+  #rpanel { position: absolute; top: 14px; right: 16px; width: 200px; display: flex;
+    flex-direction: column; gap: 10px; }
+  #energy, #truth, #math { background: rgba(14,18,30,.74); backdrop-filter: blur(8px);
+    border: 1px solid rgba(120,140,190,.18); border-radius: 11px; padding: 10px 12px;
+    font-size: 12px; display: none; }
+  #energy .eh { font-size: 10.5px; color: #8893b4; margin-bottom: 6px;
+    text-transform: uppercase; letter-spacing: .4px; }
+  #energy .er { display: flex; justify-content: space-between; gap: 8px; margin: 3px 0; color: #dde4f5; }
+  #energy .er b { color: #7fd1a8; font-variant-numeric: tabular-nums; }
+  #energy .er.dim, #energy .er.dim b { color: #6f7ca0; }
+  #energy .enote { margin-top: 7px; font-size: 11.5px; color: #ffce7a; }
+  #energy .bar { height: 6px; background: rgba(120,140,190,.14); border-radius: 3px;
+    margin: 1px 0 6px; overflow: hidden; }
+  #energy .bar i { display: block; height: 100%; width: 0; border-radius: 3px;
+    transition: width 1s ease; }
+  #energy .bar i.fly { background: #6ef0a0; }
+  #energy .bar i.chip { background: #ff7a59; }
+  #truth .th { font-size: 11px; color: #cdd6ee; margin-bottom: 7px; }
+  #truth .th .map { color: #8893b4; font-size: 11px; }
+  #truth table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  #truth td { padding: 3px 6px; text-align: center; color: #cdd6ee; font-size: 12px; }
+  #truth tr.hdr td { color: #8893b4; font-size: 10.5px; }
+  #truth tr.on { background: rgba(74,222,128,.16); }
+  #truth td.out1 { color: #6ef0a0; font-weight: 700; }
+  #truth td.out0 { color: #6f7ca0; }
+  #math .th { font-size: 10.5px; color: #8893b4; margin-bottom: 5px;
+    text-transform: uppercase; letter-spacing: .4px; }
+  #math .msum { font-size: 19px; color: #e9eefc; margin: 2px 0 3px;
+    font-variant-numeric: tabular-nums; }
+  #math .msum b { color: #6ef0a0; }
+  #math .mbin { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px;
+    color: #8893b4; }
+  #math .mops { margin-top: 6px; font-size: 11.5px; color: #ffce7a; }
+  #chat { width: 380px; flex: none; display: flex; flex-direction: column;
+    background: #0a0d16; border-left: 1px solid rgba(120,140,190,.16); }
+  #chead { padding: 14px 16px; border-bottom: 1px solid rgba(120,140,190,.12);
+    font-size: 14px; font-weight: 600; }
+  #chead small { display: block; font-weight: 400; color: #8893b4; margin-top: 2px;
+    font-size: 11.5px; }
+  #log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column;
+    gap: 10px; }
+  .msg { max-width: 88%; padding: 9px 12px; border-radius: 13px; font-size: 13px;
+    line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
+  .user { align-self: flex-end; background: #2f6df6; color: #fff; border-bottom-right-radius: 4px; }
+  .bot  { align-self: flex-start; background: #1b2233; color: #dde4f5; border-bottom-left-radius: 4px; }
+  .bot.think { color: #8893b4; font-style: italic; }
+  .chip { align-self: flex-start; font-size: 11px; color: #7fd1a8; background: rgba(40,90,65,.3);
+    padding: 3px 9px; border-radius: 20px; }
+  #form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid rgba(120,140,190,.12); }
+  #msg { flex: 1; background: #141a28; border: 1px solid rgba(120,140,190,.22); color: #e9eefc;
+    border-radius: 9px; padding: 10px 12px; font-size: 13px; outline: none; }
+  #msg:focus { border-color: #2f6df6; }
+  #send { border: none; background: #2f6df6; color: #fff; border-radius: 9px; padding: 0 16px;
+    font-size: 13px; cursor: pointer; }
+  #send:disabled { opacity: .5; cursor: default; }
+  #sugg { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 12px; }
+  #sugg button { background: #141a28; border: 1px solid rgba(120,140,190,.22); color: #aeb9d8;
+    border-radius: 20px; padding: 5px 11px; font-size: 11.5px; cursor: pointer; }
+  #sugg button:hover { border-color: #2f6df6; color: #e9eefc; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="viz">
+    <div id="title"><h1 id="ttl">FlyWire 3D</h1><p id="sub">ask the chat to show you something &rarr;</p>
+      <div id="legend">
+        <span><i class="dot" style="color:#ff8a2a;background:#ff8a2a"></i> input</span>
+        <span><i class="dot" style="color:#3aa0ff;background:#3aa0ff"></i> downstream</span>
+        <span><i class="dot" style="color:#4ade80;background:#4ade80"></i> output</span>
+        <span><i class="dot" style="color:#5a6a96;background:#5a6a96"></i> full brain</span>
+      </div>
+    </div>
+    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div></div>
+    <div id="empty">the brain will appear here when you ask a question</div>
+    <div id="tip"></div>
+    <div id="hud">
+      <span id="cap">the response replays on a loop</span>
+      <label><input id="brain" type="checkbox" checked> brain</label>
+      <label><input id="shapes" type="checkbox" checked> shapes</label>
+      <label><input id="edges" type="checkbox"> wiring</label>
+      <label><input id="spin" type="checkbox"> spin</label>
+    </div>
+  </div>
+  <div id="chat">
+    <div id="chead">Chat with a fly brain<small>powered by your local Gemma 4 + the FlyWire connectome</small></div>
+    <div id="log"></div>
+    <div id="sugg">
+      <button>What happens when the fly smells something?</button>
+      <button>Show an AND gate in the brain</button>
+      <button>Add 2 + 3 with the fly brain</button>
+      <button>Stimulate the mushroom body</button>
+    </div>
+    <form id="form">
+      <input id="msg" autocomplete="off" placeholder="ask to show / stimulate a circuit...">
+      <button id="send" type="submit">Send</button>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// ---------------- 3D viewer ----------------
+let scene, camera, renderer, controls, points = null, geo = null, lines = null, ghostPoints = null, heroes = [], gatePhaseMs = 0;
+let glow = null, spikes = [], ptr = null, DUR = 200, tNow = 0, holdT = 0;
+const clock = new THREE.Clock();
+const IN = new THREE.Color(0xff8a2a), DN = new THREE.Color(0x3aa0ff), OUT = new THREE.Color(0x4ade80);
+
+function initViewer(){
+  const viz = document.getElementById('viz');
+  scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x05060a, 0.0026);
+  camera = new THREE.PerspectiveCamera(55, viz.clientWidth/viz.clientHeight, 1, 4000);
+  camera.position.set(0, 30, 320);
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(viz.clientWidth, viz.clientHeight);
+  viz.insertBefore(renderer.domElement, viz.firstChild);
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.dampingFactor = 0.08;
+  controls.autoRotate = false; controls.autoRotateSpeed = 0.5;
+  controls.addEventListener('start', function(){      // grabbing it stops the spin
+    if (controls.autoRotate){ controls.autoRotate = false;
+      document.getElementById('spin').checked = false; }
+  });
+
+  document.getElementById('brain').onchange = function(e){ if (ghostPoints) ghostPoints.visible = e.target.checked; };
+  document.getElementById('shapes').onchange = function(e){ for (const H of heroes) H.points.visible = e.target.checked; };
+  document.getElementById('edges').onchange = function(e){ if (lines) lines.visible = e.target.checked; };
+  document.getElementById('spin').onchange  = function(e){ controls.autoRotate = e.target.checked; };
+
+  const ray = new THREE.Raycaster(); ray.params.Points.threshold = 4;
+  const mouse = new THREE.Vector2(); const tip = document.getElementById('tip');
+  renderer.domElement.addEventListener('pointermove', function(ev){
+    if (!points) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((ev.clientX-rect.left)/rect.width)*2 - 1;
+    mouse.y = -((ev.clientY-rect.top)/rect.height)*2 + 1;
+    ray.setFromCamera(mouse, camera);
+    const hit = ray.intersectObject(points)[0];
+    if (hit){ const n = window._N[hit.index];
+      tip.style.display='block'; tip.style.left=(ev.clientX-rect.left)+'px';
+      tip.style.top=(ev.clientY-rect.top)+'px'; tip.textContent = n.type + '  -  ' + n.role;
+    } else tip.style.display='none';
+  });
+  addEventListener('resize', function(){
+    camera.aspect = viz.clientWidth/viz.clientHeight; camera.updateProjectionMatrix();
+    renderer.setSize(viz.clientWidth, viz.clientHeight);
+  });
+  frame();
+}
+
+const HERO_VS = [
+  'uniform float uGlow; uniform float uSize; varying float vG;',
+  'void main(){ vG = uGlow;',
+  '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+  '  gl_PointSize = uSize * (0.5 + 1.3*uGlow) * (300.0 / -mv.z);',
+  '  gl_Position = projectionMatrix * mv; }'
+].join('\n');
+const HERO_FS = [
+  'uniform vec3 uColor; varying float vG;',
+  'void main(){ float d = length(gl_PointCoord - vec2(0.5)); if (d>0.5) discard;',
+  '  float a = smoothstep(0.5, 0.0, d);',
+  '  gl_FragColor = vec4(uColor*(0.45 + 1.5*vG), a*(0.5 + 0.5*vG)); }'
+].join('\n');
+
+function buildHero(h){
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(h.pts), 3));
+  const col = h.role === 'input' ? new THREE.Color(0xffae5e)
+            : (h.role === 'output' ? new THREE.Color(0x6ef0a0) : new THREE.Color(0x7fc8ff));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uGlow: {value:0}, uSize: {value:7.0}, uColor: {value:col} },
+    transparent: true, depthTest: false, blending: THREE.AdditiveBlending,
+    vertexShader: HERO_VS, fragmentShader: HERO_FS });
+  const p = new THREE.Points(g, mat);
+  p.visible = document.getElementById('shapes').checked;
+  scene.add(p);
+  heroes.push({ points: p, spikes: h.t || [], ptr: 0, glow: 0, mat: mat });
+}
+
+function buildGhost(arr){
+  if (ghostPoints || !arr || !arr.length) return;   // built once, then reused
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(arr), 3));
+  ghostPoints = new THREE.Points(g, new THREE.PointsMaterial({
+    color: 0x46557e, size: 1.5, sizeAttenuation: true, transparent: true,
+    opacity: 0.22, depthTest: false, blending: THREE.AdditiveBlending }));
+  ghostPoints.visible = document.getElementById('brain').checked;
+  scene.add(ghostPoints);
+}
+
+function setEnergy(e){
+  const el = document.getElementById('energy');
+  if (!e){ el.style.display = 'none'; return; }
+  const flyW = Math.max(2, (e.fly_joules / e.chip_joules) * 100);   // chip bar = 100%
+  el.innerHTML = '<div class="eh">energy of this computation</div>'
+    + '<div class="er"><span>fly brain</span><b>' + e.fly + '</b></div>'
+    + '<div class="bar"><i class="fly"></i></div>'
+    + '<div class="er"><span>a chip</span><b>' + e.chip + '</b></div>'
+    + '<div class="bar"><i class="chip"></i></div>'
+    + '<div class="er dim"><span>physical floor</span><b>' + e.floor + '</b></div>'
+    + '<div class="enote">~' + Math.round(e.chip_vs_fly) + 'x less than silicon</div>';
+  el.style.display = 'block';
+  requestAnimationFrame(function(){
+    const f = el.querySelector('.bar i.fly'), ch = el.querySelector('.bar i.chip');
+    if (f) f.style.width = flyW.toFixed(1) + '%';
+    if (ch) ch.style.width = '100%';
+  });
+}
+
+function setMath(m){
+  const el = document.getElementById('math');
+  if (!m){ el.style.display = 'none'; return; }
+  const s = ' ' + (m.sym || '+') + ' ';
+  el.innerHTML = '<div class="th">fly-brain calculator</div>'
+    + '<div class="msum">' + m.x + s + m.y + ' = <b>' + m.result + '</b></div>'
+    + '<div class="mbin">' + m.x_bin + s + m.y_bin + ' = ' + m.result_bin + '</div>'
+    + '<div class="mops">' + m.gate_ops + ' real fly-neuron gate operations</div>';
+  el.style.display = 'block';
+}
+
+function setGate(g){
+  const el = document.getElementById('truth');
+  if (!g){ el.style.display = 'none'; gatePhaseMs = 0; return; }
+  gatePhaseMs = g.phase_ms;
+  const L = g.labels;
+  let h = '<div class="th">' + g.kind + ' gate<br><span class="map">'
+    + L.A + ' &amp; ' + L.B + ' &rarr; ' + L.O + '</span></div>'
+    + '<table><tr class="hdr"><td>A</td><td>B</td><td>out</td></tr>';
+  for (let i=0;i<4;i++){
+    const a=g.rows[i][0], b=g.rows[i][1], o=(g.truth[i]>0)?1:0;
+    h += '<tr data-r="'+i+'"><td>'+a+'</td><td>'+b+'</td><td class="out'+o+'">'+o+'</td></tr>';
+  }
+  el.innerHTML = h + '</table>';
+  el.style.display = 'block';
+}
+
+function setData(D){
+  document.getElementById('empty').style.display = 'none';
+  if (D.ghost) buildGhost(D.ghost);
+  document.getElementById('ttl').textContent = D.title;
+  document.getElementById('sub').textContent = D.neurons.length
+    ? (D.n_input + ' input -> ' + D.n_downstream + ' downstream  in real brain coordinates')
+    : 'ask the chat to light up a circuit';
+  window._N = D.neurons;
+  if (points){ scene.remove(points); points.geometry.dispose(); points.material.dispose(); points = null; }
+  if (lines){ scene.remove(lines); lines.geometry.dispose(); lines.material.dispose(); lines = null; }
+
+  const N = D.neurons.length;
+  const pos = new Float32Array(N*3), col = new Float32Array(N*3);
+  glow = new Float32Array(N); spikes = []; ptr = new Int32Array(N);
+  for (let i=0;i<N;i++){
+    const n = D.neurons[i];
+    pos[i*3]=n.x; pos[i*3+1]=n.y; pos[i*3+2]=n.z;
+    const c = n.role === 'input' ? IN : (n.role === 'output' ? OUT : DN);
+    col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b;
+    spikes.push(n.t || []);
+  }
+  geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setAttribute('aGlow', new THREE.BufferAttribute(glow, 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uSize: { value: 26.0 } },
+    transparent: true, depthTest: false, blending: THREE.AdditiveBlending, vertexColors: true,
+    vertexShader: [
+      'attribute float aGlow; varying float vGlow; varying vec3 vColor; uniform float uSize;',
+      'void main(){ vGlow=aGlow; vColor=color;',
+      '  vec4 mv = modelViewMatrix * vec4(position,1.0);',
+      '  gl_PointSize = uSize * (0.45 + 2.4*aGlow) * (300.0 / -mv.z);',
+      '  gl_Position = projectionMatrix * mv; }'
+    ].join('\n'),
+    fragmentShader: [
+      'varying float vGlow; varying vec3 vColor;',
+      'void main(){ float d = length(gl_PointCoord - vec2(0.5)); if (d>0.5) discard;',
+      '  float a = smoothstep(0.5,0.0,d); vec3 c = vColor*(0.30+1.9*vGlow);',
+      '  gl_FragColor = vec4(c, a*(0.32+0.68*vGlow)); }'
+    ].join('\n'),
+  });
+  points = new THREE.Points(geo, mat); scene.add(points);
+
+  if (D.edges && D.edges.length){
+    const ep = new Float32Array(D.edges.length*6);
+    for (let e=0;e<D.edges.length;e++){
+      const a=D.edges[e][0], b=D.edges[e][1];
+      ep[e*6]=pos[a*3]; ep[e*6+1]=pos[a*3+1]; ep[e*6+2]=pos[a*3+2];
+      ep[e*6+3]=pos[b*3]; ep[e*6+4]=pos[b*3+1]; ep[e*6+5]=pos[b*3+2];
+    }
+    const lg = new THREE.BufferGeometry();
+    lg.setAttribute('position', new THREE.BufferAttribute(ep,3));
+    lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({
+      color: 0x33aa66, transparent: true, opacity: 0.05, depthTest: false,
+      blending: THREE.AdditiveBlending }));
+    lines.visible = document.getElementById('edges').checked; scene.add(lines);
+  }
+  for (const H of heroes){ scene.remove(H.points); H.points.geometry.dispose(); H.points.material.dispose(); }
+  heroes = [];
+  if (D.heroes){ for (let i=0;i<D.heroes.length;i++) buildHero(D.heroes[i]); }
+
+  DUR = D.dur_ms; tNow = 0; holdT = 0;
+  document.getElementById('cap').textContent = D.math
+    ? 'the fly-neuron gates that did the math'
+    : (D.gate ? 'cycling every input combination'
+       : (D.neurons.length ? ('replaying the first ' + DUR + ' ms, on a loop')
+                           : 'the whole brain, at rest'));
+  setEnergy(D.energy);
+  setGate(D.gate);
+  setMath(D.math);
+}
+
+function frame(){
+  requestAnimationFrame(frame);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (points){
+    let looped = false;
+    if (tNow < DUR){ tNow += dt * (DUR/8.0); if (tNow > DUR) tNow = DUR; }
+    else { holdT += dt; if (holdT > 0.6){ holdT = 0; tNow = 0; ptr.fill(0); looped = true; } }
+    for (let i=0;i<glow.length;i++){
+      glow[i] *= 0.90;
+      const s = spikes[i];
+      while (ptr[i] < s.length && s[ptr[i]] <= tNow){ glow[i] = 1.0; ptr[i]++; }
+    }
+    geo.attributes.aGlow.needsUpdate = true;
+    for (let h=0;h<heroes.length;h++){
+      const H = heroes[h];
+      if (looped) H.ptr = 0;
+      H.glow *= 0.90;
+      while (H.ptr < H.spikes.length && H.spikes[H.ptr] <= tNow){ H.glow = 1.0; H.ptr++; }
+      H.mat.uniforms.uGlow.value = H.glow;
+    }
+    if (gatePhaseMs > 0){            // highlight the truth-table row for the current phase
+      const ph = Math.min(3, Math.floor(tNow / gatePhaseMs));
+      const rows = document.querySelectorAll('#truth tr[data-r]');
+      for (let i=0;i<rows.length;i++) rows[i].classList.toggle('on', i === ph);
+    }
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// ---------------- chat ----------------
+const log = document.getElementById('log');
+function bubble(cls, text){
+  const d = document.createElement('div'); d.className = 'msg ' + cls; d.textContent = text;
+  log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
+}
+function chip(text){
+  const d = document.createElement('div'); d.className = 'chip'; d.textContent = text;
+  log.appendChild(d); log.scrollTop = log.scrollHeight;
+}
+
+let busy = false;
+async function ask(text){
+  if (busy || !text.trim()) return;
+  busy = true; document.getElementById('send').disabled = true;
+  bubble('user', text);
+  const thinking = bubble('bot think', 'thinking + simulating...');
+  try {
+    const r = await fetch('/chat', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ message: text }) });
+    const data = await r.json();
+    thinking.remove();
+    if (data.viz){ setData(data.viz); chip('updated 3D: ' + data.viz.query +
+      ' (' + data.viz.n_downstream + ' downstream)'); }
+    bubble('bot', data.answer || '(no answer)');
+  } catch (e) {
+    thinking.remove(); bubble('bot', 'error: ' + e.message);
+  }
+  busy = false; document.getElementById('send').disabled = false;
+  document.getElementById('msg').focus();
+}
+
+document.getElementById('form').addEventListener('submit', function(e){
+  e.preventDefault();
+  const inp = document.getElementById('msg'); const t = inp.value; inp.value = '';
+  ask(t);
+});
+document.querySelectorAll('#sugg button').forEach(function(b){
+  b.onclick = function(){ ask(b.textContent); };
+});
+
+initViewer();
+
+// show a starter scene immediately, so the brain is visible before any chat
+(function(){
+  const empty = document.getElementById('empty');
+  empty.textContent = 'loading the brain...';
+  fetch('/initial').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+    if (d && d.neurons) setData(d);
+    else empty.textContent = 'ask the chat to show you something';
+  }).catch(function(){ empty.textContent = 'ask the chat to show you something'; });
+})();
+</script>
+</body>
+</html>

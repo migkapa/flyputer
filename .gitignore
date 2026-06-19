@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+# Large data files — download via get_data.sh, don't commit
+proofread_connections_783.feather
+annotations_783.tsv
+
+# generated artifacts / virtualenv
+.venv/
+fly_response.png
+fly3d_data.js
+hero_cache/

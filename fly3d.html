@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlyWire 3D - signal through the brain</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #05060a; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  #app { position: fixed; inset: 0; }
+  #title { position: fixed; top: 16px; left: 18px; color: #e9eefc; pointer-events: none; }
+  #title h1 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: .2px; }
+  #title p  { margin: 4px 0 0; font-size: 12.5px; color: #93a0c4; }
+  #legend { margin-top: 10px; font-size: 12px; display: flex; gap: 14px; }
+  #legend span { display: inline-flex; align-items: center; gap: 6px; color: #c3cce6; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+    box-shadow: 0 0 8px currentColor; }
+  #hud { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+    width: min(680px, 94vw); background: rgba(14,18,30,.72); backdrop-filter: blur(9px);
+    border: 1px solid rgba(120,140,190,.18); border-radius: 13px; padding: 11px 15px;
+    color: #dde4f5; display: flex; align-items: center; gap: 13px; font-size: 13px; }
+  #play { cursor: pointer; border: none; width: 38px; height: 38px; flex: none;
+    border-radius: 50%; background: #2f6df6; color: #fff; font-size: 15px; }
+  #play:hover { background: #4b82ff; }
+  #scrub { flex: 1; accent-color: #2f6df6; }
+  #time { font-variant-numeric: tabular-nums; min-width: 86px; color: #aeb9d8; }
+  #hud label { display: inline-flex; align-items: center; gap: 6px; color: #aeb9d8;
+    white-space: nowrap; cursor: pointer; }
+  #hint { position: fixed; right: 16px; bottom: 18px; color: #6f7ca0; font-size: 11.5px; }
+  #tip { position: fixed; pointer-events: none; background: rgba(10,14,24,.92);
+    border: 1px solid rgba(120,140,190,.25); border-radius: 7px; padding: 4px 8px;
+    color: #e6ebf8; font-size: 12px; display: none; transform: translate(12px, -50%); }
+  #err { position: fixed; inset: 0; display: none; place-items: center; color: #ff9b9b;
+    text-align: center; padding: 30px; font-size: 14px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="title">
+  <h1 id="ttl">FlyWire 3D</h1>
+  <p id="sub">loading...</p>
+  <div id="legend">
+    <span><i class="dot" style="color:#ff8a2a;background:#ff8a2a"></i> stimulated (input)</span>
+    <span><i class="dot" style="color:#3aa0ff;background:#3aa0ff"></i> downstream response</span>
+    <span><i class="dot" style="color:#5a6a96;background:#5a6a96"></i> full brain</span>
+  </div>
+</div>
+<div id="hud">
+  <span id="cap">the response replays on a loop</span>
+  <label><input id="brain" type="checkbox" checked> brain</label>
+  <label><input id="shapes" type="checkbox" checked> shapes</label>
+  <label><input id="edges" type="checkbox"> wiring</label>
+  <label><input id="spin" type="checkbox"> spin</label>
+</div>
+<div id="hint">drag to rotate &middot; scroll to zoom &middot; hover a neuron</div>
+<div id="tip"></div>
+<div id="err">Couldn't load <b>fly3d_data.js</b>.<br>Run <code>.venv/bin/python export3d.py</code> first, then reopen this file.</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="fly3d_data.js"></script>
+<script>
+const D = window.FLY_DATA;
+if (!D) { document.getElementById('err').style.display = 'grid'; }
+else { boot(D); }
+
+function boot(D) {
+  const N = D.neurons.length;
+  document.getElementById('ttl').textContent = D.title;
+  document.getElementById('sub').textContent =
+    D.n_input + ' input -> ' + D.n_downstream + ' downstream neurons  ' + N +
+    ' firing  in real brain coordinates';
+
+  const app = document.getElementById('app');
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x05060a, 0.0026);
+  const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 1, 4000);
+  camera.position.set(0, 30, 320);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  app.appendChild(renderer.domElement);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.dampingFactor = 0.08;
+  controls.autoRotate = false; controls.autoRotateSpeed = 0.5;
+  controls.addEventListener('start', function(){      // grabbing it stops the spin
+    if (controls.autoRotate){ controls.autoRotate = false;
+      document.getElementById('spin').checked = false; }
+  });
+
+  // ---- geometry: one point per neuron ----
+  const pos = new Float32Array(N*3);
+  const col = new Float32Array(N*3);
+  const glow = new Float32Array(N);
+  const IN = new THREE.Color(0xff8a2a), DN = new THREE.Color(0x3aa0ff);
+  const spikes = [];
+  for (let i=0;i<N;i++){
+    const n = D.neurons[i];
+    pos[i*3]=n.x; pos[i*3+1]=n.y; pos[i*3+2]=n.z;
+    const c = n.role === 'input' ? IN : DN;
+    col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b;
+    spikes.push(n.t || []);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setAttribute('aGlow', new THREE.BufferAttribute(glow, 1));
+
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uSize: { value: 26.0 } },
+    transparent: true, depthTest: false, blending: THREE.AdditiveBlending,
+    vertexColors: true,
+    vertexShader: [
+      'attribute float aGlow; varying float vGlow; varying vec3 vColor;',
+      'uniform float uSize;',
+      'void main(){',
+      '  vGlow = aGlow; vColor = color;',
+      '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+      '  gl_PointSize = uSize * (0.45 + 2.4*aGlow) * (300.0 / -mv.z);',
+      '  gl_Position = projectionMatrix * mv;',
+      '}'
+    ].join('\n'),
+    fragmentShader: [
+      'varying float vGlow; varying vec3 vColor;',
+      'void main(){',
+      '  float d = length(gl_PointCoord - vec2(0.5));',
+      '  if (d > 0.5) discard;',
+      '  float a = smoothstep(0.5, 0.0, d);',
+      '  vec3 c = vColor * (0.30 + 1.9*vGlow);',
+      '  gl_FragColor = vec4(c, a * (0.32 + 0.68*vGlow));',
+      '}'
+    ].join('\n'),
+  });
+  const points = new THREE.Points(geo, mat);
+  scene.add(points);
+
+  // ---- edges (synaptic wiring), hidden by default ----
+  let lines = null;
+  if (D.edges && D.edges.length) {
+    const ep = new Float32Array(D.edges.length*6);
+    for (let e=0;e<D.edges.length;e++){
+      const a = D.edges[e][0], b = D.edges[e][1];
+      ep[e*6]=pos[a*3]; ep[e*6+1]=pos[a*3+1]; ep[e*6+2]=pos[a*3+2];
+      ep[e*6+3]=pos[b*3]; ep[e*6+4]=pos[b*3+1]; ep[e*6+5]=pos[b*3+2];
+    }
+    const lg = new THREE.BufferGeometry();
+    lg.setAttribute('position', new THREE.BufferAttribute(ep, 3));
+    lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({
+      color: 0x33aa66, transparent: true, opacity: 0.05, depthTest: false,
+      blending: THREE.AdditiveBlending }));
+    lines.visible = false; scene.add(lines);
+  }
+
+  // ---- full-brain ghost cloud (inactive context) ----
+  if (D.ghost && D.ghost.length){
+    const gg = new THREE.BufferGeometry();
+    gg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(D.ghost), 3));
+    const ghost = new THREE.Points(gg, new THREE.PointsMaterial({
+      color: 0x46557e, size: 1.5, sizeAttenuation: true, transparent: true,
+      opacity: 0.22, depthTest: false, blending: THREE.AdditiveBlending }));
+    scene.add(ghost);
+    document.getElementById('brain').onchange = function(e){ ghost.visible = e.target.checked; };
+  }
+
+  // ---- hero arbors (real morphology for key neurons) ----
+  const heroList = [];
+  const HVS = ['uniform float uGlow; uniform float uSize; varying float vG;',
+    'void main(){ vG = uGlow; vec4 mv = modelViewMatrix * vec4(position,1.0);',
+    '  gl_PointSize = uSize*(0.5+1.3*uGlow)*(300.0/-mv.z); gl_Position = projectionMatrix*mv; }'].join('\n');
+  const HFS = ['uniform vec3 uColor; varying float vG;',
+    'void main(){ float d=length(gl_PointCoord-vec2(0.5)); if(d>0.5) discard;',
+    '  float a=smoothstep(0.5,0.0,d); gl_FragColor=vec4(uColor*(0.45+1.5*vG), a*(0.5+0.5*vG)); }'].join('\n');
+  if (D.heroes){ for (let hi=0; hi<D.heroes.length; hi++){ const h = D.heroes[hi];
+    const hg = new THREE.BufferGeometry();
+    hg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(h.pts), 3));
+    const hc = h.role === 'input' ? new THREE.Color(0xffae5e) : new THREE.Color(0x7fc8ff);
+    const hmat = new THREE.ShaderMaterial({ uniforms:{uGlow:{value:0},uSize:{value:7.0},uColor:{value:hc}},
+      transparent:true, depthTest:false, blending:THREE.AdditiveBlending, vertexShader:HVS, fragmentShader:HFS });
+    const hp = new THREE.Points(hg, hmat); scene.add(hp);
+    heroList.push({ spikes: h.t||[], ptr:0, glow:0, mat:hmat, points:hp });
+  }}
+  document.getElementById('shapes').onchange = function(e){ for (const H of heroList) H.points.visible = e.target.checked; };
+
+  // ---- animation: continuous loop with a brief dark beat between replays ----
+  const DUR = D.dur_ms;
+  const ptr = new Int32Array(N);
+  let tNow = 0, holdT = 0;
+  const clock = new THREE.Clock();
+
+  function frame(){
+    requestAnimationFrame(frame);
+    const dt = Math.min(clock.getDelta(), 0.05);
+    let looped = false;
+    if (tNow < DUR){ tNow += dt * (DUR/8.0); if (tNow > DUR) tNow = DUR; }
+    else { holdT += dt; if (holdT > 0.6){ holdT = 0; tNow = 0; ptr.fill(0); looped = true; } }
+    for (let i=0;i<N;i++){
+      glow[i] *= 0.90;                             // decay
+      const s = spikes[i];
+      while (ptr[i] < s.length && s[ptr[i]] <= tNow){ glow[i] = 1.0; ptr[i]++; }
+    }
+    geo.attributes.aGlow.needsUpdate = true;
+    for (let h=0;h<heroList.length;h++){ const H=heroList[h]; if(looped) H.ptr=0; H.glow*=0.90;
+      while(H.ptr<H.spikes.length && H.spikes[H.ptr]<=tNow){H.glow=1.0;H.ptr++;} H.mat.uniforms.uGlow.value=H.glow; }
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  frame();
+
+  // ---- UI ----
+  document.getElementById('edges').onchange = function(e){ if (lines) lines.visible = e.target.checked; };
+  document.getElementById('spin').onchange  = function(e){ controls.autoRotate = e.target.checked; };
+
+  // ---- hover tooltip ----
+  const ray = new THREE.Raycaster(); ray.params.Points.threshold = 4;
+  const mouse = new THREE.Vector2(); const tip = document.getElementById('tip');
+  renderer.domElement.addEventListener('pointermove', function(ev){
+    mouse.x = (ev.clientX/innerWidth)*2 - 1; mouse.y = -(ev.clientY/innerHeight)*2 + 1;
+    ray.setFromCamera(mouse, camera);
+    const hit = ray.intersectObject(points)[0];
+    if (hit){ const n = D.neurons[hit.index];
+      tip.style.display='block'; tip.style.left=ev.clientX+'px'; tip.style.top=ev.clientY+'px';
+      tip.textContent = n.type + '  -  ' + n.role;
+    } else tip.style.display='none';
+  });
+
+  addEventListener('resize', function(){
+    camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+}
+</script>
+</body>
+</html>
