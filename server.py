@@ -33,6 +33,7 @@ Act by emitting exactly ONE JSON object per turn, nothing else:
   {"tool": "show_logic_gate", "args": {"kind": "AND"}}
   {"tool": "do_math", "args": {"a": 6, "b": 7, "op": "mul"}}
   {"tool": "show_compass", "args": {"regime": "raw"}}
+  {"tool": "move_fly", "args": {"moves": ["forward", "left", "forward", "escape"]}}
   {"tool": "find_neurons", "args": {"query": "mushroom body"}}
   {"final": "your short, friendly plain-English answer"}
 
@@ -52,6 +53,12 @@ Tools:
   and steers) or "memory" (relaxed inhibition so the bump self-sustains with no input). Use
   when the user asks about the compass, heading, navigation, memory, working memory, ring
   attractor, the central complex, or "remembering" / state.
+- move_fly(moves): drive a virtual fly by EXCITING REAL DESCENDING COMMAND NEURONS. `moves`
+  is a list of behaviors from: "forward" (DNp09), "backward"/"moonwalk" (MDN), "left"/"right"
+  (DNa02 steering), "escape"/"jump" (the Giant Fiber DNp01). The brain lights up the real
+  command neurons and a virtual fly body walks/turns/lunges accordingly. Use when the user
+  asks to move/walk/turn/steer the fly, make it jump or escape, or drive behavior. The VNC +
+  muscles aren't in this dataset, so the body is a stand-in driven by the real brain commands.
 - find_neurons(query): look up neurons by name/region.
 
 Every scene comes back with an energy ledger comparing the fly brain to a computer chip.
@@ -113,11 +120,27 @@ def run_agent(message, max_steps=8):
                 "cued_heading_deg": cm["theta0_deg"], "turned_to_deg": cm["turn_to_deg"],
                 "energy": data["energy"]["headline"]}
 
+    def move_fly(moves=None):
+        if isinstance(moves, str):
+            moves = moves.replace(",", " ").split()
+        if not moves:
+            moves = ["forward", "left", "forward", "escape"]
+        data = export3d.build_fly_scene([str(m) for m in moves])
+        viz["data"] = data
+        f = data["fly"]
+        end = f["traj"][-1] if f["traj"] else [0, 0, 0, 0]
+        return {"shown_in_3d": True, "scene": "fly",
+                "moves": [c["label"] for c in f["commands"]],
+                "command_neurons": [c["dn"] for c in f["commands"]],
+                "ended_at": {"x": end[1], "y": end[2], "heading_deg": end[3]},
+                "energy": data["energy"]["headline"]}
+
     tools = dict(flysim.TOOLS)
     tools["show3d"] = show3d
     tools["show_logic_gate"] = show_logic_gate
     tools["do_math"] = do_math
     tools["show_compass"] = show_compass
+    tools["move_fly"] = move_fly
     msgs = [{"role": "system", "content": SYSTEM},
             {"role": "user", "content": message}]
     for _ in range(max_steps):

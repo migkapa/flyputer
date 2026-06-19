@@ -88,6 +88,22 @@
   #compass .cphase .rbar i { display: block; height: 100%; width: 0; background: #6ef0a0;
     border-radius: 3px; transition: width .1s linear; }
   #compass .cnote { margin-top: 7px; font-size: 10.5px; color: #8893b4; line-height: 1.35; }
+  #arena { background: rgba(14,18,30,.74); backdrop-filter: blur(8px);
+    border: 1px solid rgba(120,140,190,.16); border-radius: 12px; padding: 11px 13px;
+    width: 196px; pointer-events: auto; }
+  #arena .th { font-size: 11px; color: #cdd6ee; margin-bottom: 8px; }
+  #arena .th .map { color: #8893b4; font-size: 10.5px; }
+  #arena svg.field { width: 170px; height: 170px; display: block; margin: 0 auto; }
+  #arena .afield { fill: rgba(120,140,190,.05); stroke: rgba(120,140,190,.22); stroke-width: .8; }
+  #arena .grid { stroke: rgba(120,140,190,.12); stroke-width: .5; }
+  #arena .trail { fill: none; stroke: #7fd1a8; stroke-width: 1.4; opacity: .45; }
+  #arena .body { fill: #6ef0a0; stroke: #0e1220; stroke-width: .6; }
+  #arena .start { fill: #6f7ca0; }
+  #arena .amove { display: flex; align-items: center; gap: 7px; margin-top: 8px; }
+  #arena .amove .lbl { font-size: 11px; font-weight: 700; color: #7fd1a8; }
+  #arena .amove .dn { margin-left: auto; font-size: 10px; color: #6f7ca0;
+    font-variant-numeric: tabular-nums; }
+  #arena .anote { margin-top: 6px; font-size: 10px; color: #8893b4; line-height: 1.35; }
   #math .th { font-size: 10.5px; color: #8893b4; margin-bottom: 5px;
     text-transform: uppercase; letter-spacing: .4px; }
   #math .msum { font-size: 19px; color: #e9eefc; margin: 2px 0 3px;
@@ -135,7 +151,7 @@
         <span><i class="dot" style="color:#5a6a96;background:#5a6a96"></i> full brain</span>
       </div>
     </div>
-    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div><div id="compass"></div></div>
+    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div><div id="compass"></div><div id="arena"></div></div>
     <div id="empty">the brain will appear here when you ask a question</div>
     <div id="tip"></div>
     <div id="hud">
@@ -337,6 +353,52 @@ function setCompass(c){
   el.style.display = 'block';
 }
 
+function setFly(f){
+  const el = document.getElementById('arena');
+  if (!f || !f.traj || !f.traj.length){ el.style.display = 'none'; window._fly = null; return; }
+  const b = f.bounds;                          // [minx,miny,maxx,maxy]
+  const w = Math.max(1e-6, b[2]-b[0]), h = Math.max(1e-6, b[3]-b[1]);
+  const s = 78 / Math.max(w, h);
+  const ox = 50 - s*(b[0]+b[2])/2, oy = 50 + s*(b[1]+b[3])/2;
+  const toX = x => ox + s*x, toY = y => oy - s*y;
+  window._fly = {traj: f.traj, commands: f.commands, toX, toY};
+  let pts = '';
+  for (const p of f.traj) pts += toX(p[1]).toFixed(1)+','+toY(p[2]).toFixed(1)+' ';
+  const s0 = f.traj[0];
+  let grid = '';
+  for (let g=20; g<=80; g+=20){
+    grid += '<line class="grid" x1="'+g+'" y1="8" x2="'+g+'" y2="92"/>'
+          + '<line class="grid" x1="8" y1="'+g+'" x2="92" y2="'+g+'"/>';
+  }
+  el.innerHTML = '<div class="th">virtual fly <span class="map">'
+      + f.commands.length + ' commands &middot; real DNs</span></div>'
+    + '<svg viewBox="0 0 100 100" class="field">'
+    +   '<rect class="afield" x="8" y="8" width="84" height="84" rx="4"/>' + grid
+    +   '<polyline class="trail" points="'+pts+'"/>'
+    +   '<circle class="start" cx="'+toX(s0[1]).toFixed(1)+'" cy="'+toY(s0[2]).toFixed(1)+'" r="1.6"/>'
+    +   '<path class="body" d="M 6,0 L -4,-3.4 L -4,3.4 Z"/>'
+    + '</svg>'
+    + '<div class="amove"><span class="lbl">&mdash;</span><span class="dn"></span></div>'
+    + '<div class="anote">brain fires the real command neuron; the body stands in for the VNC</div>';
+  el.style.display = 'block';
+}
+
+function updateFly(t){
+  const f = window._fly, el = document.getElementById('arena');
+  if (!f || !el || el.style.display === 'none') return;
+  const tr = f.traj;
+  let p = tr[0];
+  for (let i=0;i<tr.length;i++){ if (tr[i][0] <= t) p = tr[i]; else break; }
+  const body = el.querySelector('.body');
+  if (body) body.setAttribute('transform',
+    'translate('+f.toX(p[1]).toFixed(1)+','+f.toY(p[2]).toFixed(1)+') rotate('+(-p[3]).toFixed(1)+')');
+  let cur = null;
+  for (const c of f.commands){ if (t >= c.t0 && t < c.t1){ cur = c; break; } }
+  if (!cur) cur = f.commands[f.commands.length-1];
+  const lbl = el.querySelector('.amove .lbl'), dn = el.querySelector('.amove .dn');
+  if (cur && lbl){ lbl.textContent = cur.label; dn.textContent = cur.dn + (cur.side ? ' ('+cur.side+')' : ''); }
+}
+
 function setData(D){
   document.getElementById('empty').style.display = 'none';
   if (D.ghost) buildGhost(D.ghost);
@@ -402,14 +464,16 @@ function setData(D){
   DUR = D.dur_ms; tNow = 0; holdT = 0;
   document.getElementById('cap').textContent = D.math
     ? 'the fly-neuron gates that did the math'
-    : (D.compass ? 'cue → hold → turn: the heading bump on a loop'
-       : (D.gate ? 'cycling every input combination'
-          : (D.neurons.length ? ('replaying the first ' + DUR + ' ms, on a loop')
-                              : 'the whole brain, at rest')));
+    : (D.fly ? 'exciting descending neurons → the body moves'
+       : (D.compass ? 'cue → hold → turn: the heading bump on a loop'
+          : (D.gate ? 'cycling every input combination'
+             : (D.neurons.length ? ('replaying the first ' + DUR + ' ms, on a loop')
+                                 : 'the whole brain, at rest'))));
   setEnergy(D.energy);
   setGate(D.gate);
   setMath(D.math);
   setCompass(D.compass);
+  setFly(D.fly);
 }
 
 function frame(){
@@ -438,6 +502,7 @@ function frame(){
       for (let i=0;i<rows.length;i++) rows[i].classList.toggle('on', i === ph);
     }
     if (window._compass){ updateCompass(tNow); }
+    if (window._fly){ updateFly(tNow); }
   }
   controls.update();
   renderer.render(scene, camera);

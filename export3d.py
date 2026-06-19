@@ -344,6 +344,75 @@ def build_compass_scene(regime="raw"):
     }
 
 
+def build_fly_scene(commands, seg_ms=160):
+    """3D scene of a virtual fly driven by exciting real descending command neurons. Each
+    behavior drives its DN on the connectome for one phase; the brain lights up the DNs +
+    downstream, and the SAME firing moves a virtual body. Returns neurons + spike timeline,
+    a `fly` block (trajectory + per-command spans), and the energy ledger."""
+    import fly
+    seq = [fly.resolve(c) for c in (commands or [])]
+    seq = [c for c in seq if c in fly.BEHAVIORS] or ["forward"]
+
+    # one combined subcircuit over all command DNs, so positions/indices are stable
+    cmd_ids = [fly.dn_ids(fly.BEHAVIORS[c]["dn"], fly.BEHAVIORS[c]["side"]) for c in seq]
+    all_drive = list(dict.fromkeys(i for ids in cmd_ids for i in ids))
+    nodes, idx, W = flysim.build_subcircuit(all_drive, hops=2)
+
+    # phase k drives command k's DNs; collect spikes per neuron with a phase time offset
+    spk = {r: [] for r in range(len(nodes))}
+    total = np.zeros(len(nodes))
+    gains = []
+    for k, ids in enumerate(cmd_ids):
+        drive = [i for i in ids if i in idx]
+        sp, st, si = flysim.run_lif(nodes, idx, W, drive, dur_ms=seg_ms, record=True)
+        total += sp
+        dn_spikes = sum(int(sp[idx[d]]) for d in drive)
+        gains.append(min(1.0, dn_spikes / 8.0))
+        off = k * seg_ms
+        for t, ni in zip(st.tolist(), si.tolist()):
+            spk[int(ni)].append(round(float(t) + off, 1))
+
+    path, spans = fly.kinematics(seq, gains, dur_ms=seg_ms)
+    drive_set = set(all_drive)
+
+    P = _positions()
+    c, s = _transform()
+    active = [r for r in range(len(nodes)) if total[r] > 0 and nodes[r] in P]
+    neurons = []
+    for r in active:
+        x, y, z = (np.array(P[nodes[r]]) - c) * s
+        ts = spk[r]
+        if len(ts) > 140:
+            ts = ts[::max(1, len(ts) // 140)]
+        neurons.append({"x": round(float(x), 2), "y": round(float(y), 2), "z": round(float(z), 2),
+                        "role": "input" if nodes[r] in drive_set else "downstream",
+                        "type": flysim.LABEL.get(nodes[r], "?"), "t": ts})
+
+    # downsample the path for the wire
+    step = max(1, len(path) // 160)
+    traj = [[round(t, 0), round(float(px), 4), round(float(py), 4),
+             round(float(np.degrees(th)), 1)] for (t, px, py, th) in path[::step]]
+    xs = [p[1] for p in traj]; ys = [p[2] for p in traj]
+    cmds = [{"label": beh["label"], "dn": beh["dn"], "side": (beh["side"] or ""),
+             "gain01": round(g, 2), "t0": round(t0, 0), "t1": round(t1, 0)}
+            for (name, beh, g, t0, t1) in spans]
+
+    ev = energy.synaptic_events(total, W)
+    return {
+        "title": "Fly driven by descending command neurons",
+        "query": "fly", "dur_ms": seg_ms * len(seq),
+        "n_input": sum(1 for n in neurons if n["role"] == "input"),
+        "n_downstream": sum(1 for n in neurons if n["role"] == "downstream"),
+        "top_downstream_types": [c["dn"] for c in cmds][:6],
+        "neurons": neurons, "edges": [], "ghost": _ghost(), "heroes": [],
+        "energy": energy.summary(ev),
+        "fly": {
+            "dur_ms": seg_ms * len(seq), "seg_ms": seg_ms, "commands": cmds, "traj": traj,
+            "bounds": [min(xs), min(ys), max(xs), max(ys)],
+        },
+    }
+
+
 def build_math_scene(x, y, op="add", phase_ms=200):
     """3D scene of the fly-neuron 'calculator' computing x (+ or x) y: the gate motif
     neurons as arbors, plus the binary result and the energy the computation cost."""
