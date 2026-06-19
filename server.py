@@ -34,6 +34,7 @@ Act by emitting exactly ONE JSON object per turn, nothing else:
   {"tool": "do_math", "args": {"a": 6, "b": 7, "op": "mul"}}
   {"tool": "show_compass", "args": {"regime": "raw"}}
   {"tool": "move_fly", "args": {"moves": ["forward", "left", "forward", "escape"]}}
+  {"tool": "navigate_fly", "args": {"start_heading": 120}}
   {"tool": "find_neurons", "args": {"query": "mushroom body"}}
   {"final": "your short, friendly plain-English answer"}
 
@@ -59,6 +60,11 @@ Tools:
   command neurons and a virtual fly body walks/turns/lunges accordingly. Use when the user
   asks to move/walk/turn/steer the fly, make it jump or escape, or drive behavior. The VNC +
   muscles aren't in this dataset, so the body is a stand-in driven by the real brain commands.
+- navigate_fly(start_heading): CLOSED LOOP. Release the fly at start_heading (degrees) and
+  the real compass->PFL3->DNa02 steering circuit turns it onto the circuit's intrinsic
+  preferred heading while it walks — it homes and then holds a straight course. Use when the
+  user asks the fly to navigate, home, hold a course, steer itself, find its heading, or
+  asks about closed-loop / the compass driving behavior.
 - find_neurons(query): look up neurons by name/region.
 
 Every scene comes back with an energy ledger comparing the fly brain to a computer chip.
@@ -135,12 +141,25 @@ def run_agent(message, max_steps=8):
                 "ended_at": {"x": end[1], "y": end[2], "heading_deg": end[3]},
                 "energy": data["energy"]["headline"]}
 
+    def navigate_fly(start_heading=120):
+        try:
+            h = float(start_heading)
+        except Exception:
+            h = 120.0
+        data = export3d.build_navigate_scene(h)
+        viz["data"] = data
+        f = data["fly"]
+        return {"shown_in_3d": True, "scene": "navigate",
+                "released_at_deg": f["start_deg"], "homed_to_deg": f["goal_deg"],
+                "final_error_deg": f["final_err_deg"], "energy": data["energy"]["headline"]}
+
     tools = dict(flysim.TOOLS)
     tools["show3d"] = show3d
     tools["show_logic_gate"] = show_logic_gate
     tools["do_math"] = do_math
     tools["show_compass"] = show_compass
     tools["move_fly"] = move_fly
+    tools["navigate_fly"] = navigate_fly
     msgs = [{"role": "system", "content": SYSTEM},
             {"role": "user", "content": message}]
     for _ in range(max_steps):

@@ -131,6 +131,96 @@ def integrate_path(commands, dur_ms=150, substeps=10, x0=0.0, y0=0.0, theta0=np.
 
 
 # --------------------------------------------------------------------------- #
+# Stage 2 — closed-loop steering: compass -> PFL3 -> DNa02 -> turn
+# --------------------------------------------------------------------------- #
+# The brain steers by comparing heading (EPG ring) against a goal via PFL3, which drives
+# the left/right DNa02 steering neurons. We build the REAL EPG -> PFL3 -> DNa02 induced
+# circuit and read the DNa02 left/right firing as a function of heading — a steering signal
+# straight from the connectome. It crosses zero (with a stabilizing slope) at the circuit's
+# intrinsic preferred heading, so a fly released at any heading is steered onto it.
+_STEER = None
+
+
+def steering_circuit():
+    """Real EPG(ring) -> PFL3 -> DNa02(L/R) induced subcircuit, cached."""
+    import compass as cp
+    epg = cp._ids_of_type("EPG")
+    pfl3 = cp._ids_of_type("PFL3")
+    dl = dn_ids("DNa02", "left")
+    dr = dn_ids("DNa02", "right")
+    nodes, idx, W = cp.induced_circuit(epg + pfl3 + dl + dr, min_syn=3)
+    ang, is_ring, _ = cp.ring_angles(nodes, ring_set=set(epg))
+    Lr = [idx[d] for d in dl if d in idx]
+    Rr = [idx[d] for d in dr if d in idx]
+    return {"nodes": nodes, "idx": idx, "W": W, "ang": ang, "is_ring": is_ring,
+            "Lr": Lr, "Rr": Rr, "cp": cp}
+
+
+def steering_curve(n=24, gains=(0.7, 0.8, 0.9)):
+    """Sample DNa02 (right-left) firing vs heading from the real circuit (denoised over a
+    few gains). Returns (grid_radians, steer_values). Cached."""
+    global _STEER
+    if _STEER is not None:
+        return _STEER["grid"], _STEER["raw"]
+    sc = steering_circuit()
+    cp, nodes = sc["cp"], sc["nodes"]
+    grid = np.linspace(-np.pi, np.pi, n, endpoint=False)
+    raw = []
+    for a in grid:
+        cue = [nodes[r] for r in cp._sector(sc["ang"], float(a), only=sc["is_ring"])]
+        tot = 0.0
+        for g in gains:
+            sp = flysim.run_lif(nodes, sc["idx"], sc["W"], cue, dur_ms=150, gain=g)
+            tot += sum(sp[r] for r in sc["Rr"]) - sum(sp[r] for r in sc["Lr"])
+        raw.append(tot / len(gains))
+    _STEER = {"grid": grid, "raw": np.array(raw), "circuit": sc}
+    return _STEER["grid"], _STEER["raw"]
+
+
+def steer_signal(heading):
+    """Connectome-derived steering command at a given heading (right-positive)."""
+    grid, raw = steering_curve()
+    e = (heading + np.pi) % (2 * np.pi) - np.pi
+    return float(np.interp(e, grid, raw, period=2 * np.pi))
+
+
+def intrinsic_heading():
+    """The circuit's stable preferred heading: a zero crossing of steer() with a slope that
+    restores (negative feedback). Returns radians."""
+    grid, raw = steering_curve()
+    g = np.concatenate([grid, grid[:1] + 2 * np.pi])
+    r = np.concatenate([raw, raw[:1]])
+    best = None
+    for i in range(len(g) - 1):
+        if r[i] < 0 and r[i + 1] >= 0:                 # - -> + crossing = stable for th-=k*steer
+            frac = -r[i] / (r[i + 1] - r[i])
+            cross = g[i] + frac * (g[i + 1] - g[i])
+            # prefer the steepest (most strongly restoring) crossing
+            slope = abs(r[i + 1] - r[i])
+            if best is None or slope > best[1]:
+                best = ((cross + np.pi) % (2 * np.pi) - np.pi, slope)
+    return best[0] if best else 0.0
+
+
+def navigate(theta0, steps=70, dt=0.1, k=0.5, v=1.0, step_ms=12,
+             x0=0.0, y0=0.0):
+    """Closed loop: the fly walks forward while the real steering signal turns it. Returns
+    the trajectory [(t_ms, x, y, theta), ...] and the headings list. It homes onto the
+    circuit's intrinsic preferred heading."""
+    th, x, y, t = float(theta0), x0, y0, 0.0
+    path = [(0.0, x, y, th)]
+    heads = [th]
+    for _ in range(steps):
+        th -= k * steer_signal(th) * dt
+        x += v * np.cos(th) * dt
+        y += v * np.sin(th) * dt
+        t += step_ms
+        path.append((t, x, y, th))
+        heads.append(th)
+    return path, heads
+
+
+# --------------------------------------------------------------------------- #
 # CLI: run a sequence and draw the trajectory as ASCII (no UI needed)
 # --------------------------------------------------------------------------- #
 def _ascii_arena(path, w=46, h=20):

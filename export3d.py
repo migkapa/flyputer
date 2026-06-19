@@ -413,6 +413,76 @@ def build_fly_scene(commands, seg_ms=160):
     }
 
 
+def build_navigate_scene(start_heading_deg=120.0, steps=64, phases=10):
+    """Closed-loop scene: a fly released at start_heading walks while the REAL
+    EPG -> PFL3 -> DNa02 loop steers it onto the circuit's intrinsic heading. The brain
+    lights up the steering circuit (heading bump + DNa02 L/R) phase-by-phase along the
+    trajectory; the body follows the same steering signal. Returns neurons + spike timeline,
+    a `fly` block (homing trajectory + goal heading), and the energy ledger."""
+    import fly
+    theta0 = np.radians(float(start_heading_deg))
+    path, heads = fly.navigate(theta0, steps=steps)
+    goal = fly.intrinsic_heading()
+
+    sc = fly.steering_circuit()
+    nodes, idx, W, cp = sc["nodes"], sc["idx"], sc["W"], sc["cp"]
+    drive_rows = set(np.nonzero(sc["is_ring"])[0]) | set(sc["Lr"]) | set(sc["Rr"])
+
+    # phase the brain sim along the trajectory: drive EPG at the heading at each waypoint
+    seg_ms = max(1, int(path[-1][0] / phases))
+    spk = {r: [] for r in range(len(nodes))}
+    total = np.zeros(len(nodes))
+    for p in range(phases):
+        h = heads[min(len(heads) - 1, int((p + 0.5) / phases * len(heads)))]
+        cue = [nodes[r] for r in cp._sector(sc["ang"], float(h), only=sc["is_ring"])]
+        spcount, st, si = flysim.run_lif(nodes, idx, W, cue, dur_ms=seg_ms, gain=0.8, record=True)
+        total += spcount
+        off = p * seg_ms
+        for t, ni in zip(st.tolist(), si.tolist()):
+            spk[int(ni)].append(round(float(t) + off, 1))
+
+    P = _positions()
+    c, s = _transform()
+    active = [r for r in range(len(nodes)) if total[r] > 0 and nodes[r] in P]
+    neurons = []
+    for r in active:
+        x, y, z = (np.array(P[nodes[r]]) - c) * s
+        ts = spk[r]
+        if len(ts) > 140:
+            ts = ts[::max(1, len(ts) // 140)]
+        lab = flysim.LABEL.get(nodes[r], "?")
+        neurons.append({"x": round(float(x), 2), "y": round(float(y), 2), "z": round(float(z), 2),
+                        "role": "input" if r in drive_rows else "downstream",
+                        "type": lab, "t": ts})
+
+    stepd = max(1, len(path) // 160)
+    traj = [[round(t, 0), round(float(px), 4), round(float(py), 4),
+             round(float(np.degrees(th)), 1)] for (t, px, py, th) in path[::stepd]]
+    xs = [p[1] for p in traj]; ys = [p[2] for p in traj]
+    final_err = abs(((heads[-1] - goal + np.pi) % (2 * np.pi)) - np.pi)
+    dur = path[-1][0]
+    cmds = [{"label": "homing → %d°" % round(np.degrees(goal)), "dn": "DNa02",
+             "side": "L/R", "gain01": 1.0, "t0": 0.0, "t1": dur}]
+
+    ev = energy.synaptic_events(total, W)
+    return {
+        "title": "Fly homing via the real compass→DNa02 steering loop",
+        "query": "navigate", "dur_ms": dur,
+        "n_input": sum(1 for n in neurons if n["role"] == "input"),
+        "n_downstream": sum(1 for n in neurons if n["role"] == "downstream"),
+        "top_downstream_types": ["DNa02"],
+        "neurons": neurons, "edges": [], "ghost": _ghost(), "heroes": [],
+        "energy": energy.summary(ev),
+        "fly": {
+            "dur_ms": dur, "seg_ms": seg_ms, "commands": cmds, "traj": traj,
+            "bounds": [min(xs), min(ys), max(xs), max(ys)],
+            "goal_deg": round(float(np.degrees(goal)), 0),
+            "start_deg": round(float(start_heading_deg), 0),
+            "final_err_deg": round(float(np.degrees(final_err)), 0), "closed_loop": True,
+        },
+    }
+
+
 def build_math_scene(x, y, op="add", phase_ms=200):
     """3D scene of the fly-neuron 'calculator' computing x (+ or x) y: the gate motif
     neurons as arbors, plus the binary result and the energy the computation cost."""
