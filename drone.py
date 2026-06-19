@@ -27,23 +27,54 @@ CLI:
 """
 from __future__ import annotations
 
+import os
+
 import numpy as np
 
 import fly
 import swatter
 
 _AP = None
+T_DANGER = 70.0          # ms: the Giant Fiber must fire THIS EARLY in the looming ramp to count
+                         # as danger (early spike = strong looming = obstacle filling the eye).
+_SURFACE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "looming_surface.npz")
 
 
 def autopilot():
-    """Cache the two real control signals + the circuit's intrinsic stable heading."""
+    """Cache the two real control signals, the circuit's intrinsic stable heading, and the
+    precomputed VISION response surface (real eye->detector->Giant-Fiber pipeline baked into a
+    table so the loop is O(1)). If the surface is missing it is computed + saved on first use."""
     global _AP
     if _AP is not None:
         return _AP
     fly.steering_curve()                              # warm the DNa02 steering response
-    gf = swatter.escape_threshold() or 70             # looming level at which the Giant Fiber fires
-    _AP = {"intrinsic": float(fly.intrinsic_heading()), "gf_thresh": float(gf)}
+    gf = swatter.escape_threshold() or 70
+    lookup = None
+    try:
+        import looming_surface as ls
+        if not os.path.exists(_SURFACE):
+            ls.save_surface(ls.precompute_surface(n_az=15, n_sz=12), _SURFACE)
+        surf = dict(np.load(_SURFACE))
+        lookup = ls.make_lookup(surf)
+    except Exception:
+        lookup = None                                 # falls back to geometric looming
+    _AP = {"intrinsic": float(fly.intrinsic_heading()), "gf_thresh": float(gf), "lookup": lookup}
     return _AP
+
+
+def vision_danger(rel, dist, orad):
+    """REAL-VISION obstacle test: project the obstacle onto the fly's eye (bearing -> retinotopic
+    azimuth u, range -> angular size), look up the baked eye->LPLC2/LC4->DNp01 response, and
+    return True if the real Giant Fiber fires EARLY (gf_t < T_DANGER). Falls back to geometry."""
+    import visfield
+    ap = autopilot()
+    if ap["lookup"] is None:
+        return None
+    az_u = float(np.clip(0.5 + 0.5 * np.degrees(rel) / visfield.AZ_FOV, 0, 1))
+    ang = visfield.angsize_from_dist(orad, max(dist, 1e-3))
+    size = float(np.clip(ang / (2 * visfield.AZ_FOV), 0.1, 0.95))
+    fires, gf_t = ap["lookup"](az_u, size)
+    return bool(fires and gf_t < T_DANGER)
 
 
 def _gauntlet(intr, specs=((9, 0.0), (16, 1.7), (23, -1.7), (30, 0.8), (37, -1.0)), rad=1.7):
@@ -53,7 +84,7 @@ def _gauntlet(intr, specs=((9, 0.0), (16, 1.7), (23, -1.7), (30, 0.8), (37, -1.0
 
 
 def fly_mission(release_deg=35.0, obstacles=None, steps=900, dt=0.05, v=1.0,
-                k=0.7, cone_deg=42, ttc=2.4, veer=2.1, escape_steps=12, cross=42):
+                k=0.7, cone_deg=42, ttc=2.4, veer=2.1, escape_steps=12, cross=42, vision=True):
     """Release the drone at `release_deg`; the compass stabilizes its heading and the
     Giant-Fiber reflex dodges looming obstacles. Returns the trajectory + telemetry."""
     ap = autopilot()
@@ -74,9 +105,13 @@ def fly_mission(release_deg=35.0, obstacles=None, steps=900, dt=0.05, v=1.0,
             danger, adir = False, 0.0
             for (ox, oy, orad) in obstacles:
                 dx, dy = ox - x, oy - y
-                dist = np.hypot(dx, dy) - orad
+                dist = np.hypot(dx, dy)
                 rel = (np.arctan2(dy, dx) - th + np.pi) % (2 * np.pi) - np.pi
-                if abs(rel) < cone and dist > 0 and dist / v < ttc:
+                if abs(rel) >= cone:
+                    continue
+                vd = vision_danger(rel, dist, orad) if vision else None    # SEE: real eye->GF
+                hit = vd if vd is not None else (dist - orad > 0 and (dist - orad) / v < ttc)
+                if hit:
                     danger, adir = True, (-np.sign(rel) or 1.0)
             if danger:
                 dodges += 1; cdir = adir; commit = escape_steps; avoiding = True

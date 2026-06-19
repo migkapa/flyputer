@@ -715,7 +715,7 @@ def build_drone_scene(release_deg=35.0):
             "traj": traj, "obstacles": obstacles, "steerIdx": steer_idx, "avoidIdx": avoid_idx,
             "intrinsic_deg": res["intrinsic_deg"], "dodges": res["dodges"],
             "min_clearance": round(res["min_clearance"], 2), "crashed": res["crashed"],
-            "release_deg": res["release_deg"],
+            "release_deg": res["release_deg"], "vision": True, "fov_deg": 60.0,
         },
     }
 

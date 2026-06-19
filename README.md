@@ -78,10 +78,13 @@ Things to ask — each lights up the real connectome and comes back with an ener
   the real descending command neurons (DNp09 forward, MDN back, DNa02 steer, DNp01 escape) —
   they glow in 3D as you fly a virtual fly around an arena foraging food. (`fly.py` pilot mode)
 - **"Fly a drone with the fly brain"** — a connectome **autopilot** for a simulated drone: the
-  compass (EPG→PFL3→DNa02) stabilizes its heading (course-hold) and the looming→Giant-Fiber
-  reflex (LPLC2/LC4→DNp01) dodges obstacles, with the steering vs avoidance neurons glowing.
-  Honest: a 2D kinematic sim, qualitative real-circuit control — heading-hold + avoidance
-  reflex, *not* waypoint guidance or real flight dynamics, no hardware. (`drone.py`)
+  compass (EPG→PFL3→DNa02) stabilizes its heading (course-hold) and a real **see→decide→avoid**
+  loop dodges obstacles — each obstacle is *rendered on the fly's eye* (real L1 lamina → the
+  ~66k-synapse L1→Mi1 relay), the real LPLC2/LC4 looming detectors fire, and the real Giant
+  Fiber (DNp01) decides to veer, with a live fly's-eye view and the detectors glowing in 3D.
+  Honest: a 2D sim; one weak optic→detector hop is bridged by a calibrated brightness→drive
+  scalar (the toy LIF can't relay it); heading-hold + avoidance reflex, *not* waypoint guidance
+  or real flight dynamics, no hardware. (`drone.py`, `visfield.py`, `looming_surface.py`)
 
 ## Or use the pieces directly
 
