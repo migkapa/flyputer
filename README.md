@@ -76,9 +76,7 @@ Things to ask — each lights up the real connectome and comes back with an ener
   on the real optic lobe (a ~750-column brain's-eye view, not a camera). (`optic.py`)
 - **"Let me pilot the fly with the keyboard"** — a **playable game**: arrow keys / WASD fire
   the real descending command neurons (DNp09 forward, MDN back, DNa02 steer, DNp01 escape) —
-  they glow as you pilot a **real 3D fly model** (procedural, with flapping wings) around the
-  brain, foraging food. Drop in a glTF (e.g. a CC-BY micro-CT *Drosophila*) via `loadFlyGLB()`.
-  (`fly.py` pilot mode + a procedural three.js fly)
+  they glow in 3D as you fly a virtual fly around an arena foraging food. (`fly.py` pilot mode)
 
 ## Or use the pieces directly
 
