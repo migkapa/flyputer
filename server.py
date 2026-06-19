@@ -37,6 +37,7 @@ Act by emitting exactly ONE JSON object per turn, nothing else:
   {"tool": "navigate_fly", "args": {"start_heading": 120}}
   {"tool": "show_path", "args": {"start": "sugar", "end": "motor"}}
   {"tool": "dodge_swatter", "args": {}}
+  {"tool": "two_smells", "args": {}}
   {"tool": "find_neurons", "args": {"query": "mushroom body"}}
   {"final": "your short, friendly plain-English answer"}
 
@@ -78,6 +79,12 @@ Tools:
   Shows the convergence funnel firing in 3D + an interactive swatter game (swing faster than
   the fly's reaction limit to win). Use when the user wants to swat/hit the fly, play a game,
   test the escape reflex, or asks about looming/the Giant Fiber/jumping/escape.
+- two_smells(): show how the fly stores two odor memories without interfering. Two smells
+  light up two near-disjoint sparse sets of Kenyon cells (mushroom body), so a new memory
+  barely touches an old one — the architectural trick behind the fly NOT suffering the
+  catastrophic forgetting that plagues dense neural nets. Use when the user asks about smell
+  memory, learning, the mushroom body, Kenyon cells, sparse coding, or forgetting. (Mechanism
+  demo, not a benchmark — be honest that a dense net on random odors can separate them too.)
 - find_neurons(query): look up neurons by name/region.
 
 Every scene comes back with an energy ledger comparing the fly brain to a computer chip.
@@ -194,8 +201,20 @@ def run_agent(message, max_steps=8):
     tools["show_compass"] = show_compass
     tools["move_fly"] = move_fly
     tools["navigate_fly"] = navigate_fly
+    def two_smells():
+        data = export3d.build_sniff_scene()
+        viz["data"] = data
+        sn = data["sniff"]
+        return {"shown_in_3d": True, "scene": "sniff",
+                "kc_overlap_pct": round(100 * sn["overlap"], 1), "shared_cells": sn["shared_kc"],
+                "false_memory_pct": round(100 * sn["false_memory"]),
+                "note": "two odors use near-disjoint sparse Kenyon-cell codes (%.1f%% overlap), "
+                        "so new memories barely touch old ones — a mechanism, not a benchmark"
+                        % (100 * sn["overlap"])}
+
     tools["show_path"] = show_path
     tools["dodge_swatter"] = dodge_swatter
+    tools["two_smells"] = two_smells
     msgs = [{"role": "system", "content": SYSTEM},
             {"role": "user", "content": message}]
     for _ in range(max_steps):
@@ -297,6 +316,11 @@ def serve(open_browser=True):
         try:
             import swatter
             swatter.circuit()             # warm the looming/escape subcircuit
+        except Exception:
+            pass
+        try:
+            import sniff
+            sniff.circuit()               # warm the olfactory-learning slice
         except Exception:
             pass
     threading.Thread(target=_warm, daemon=True).start()

@@ -145,6 +145,17 @@
   #swatter .out { margin-top: 7px; font-size: 11px; min-height: 28px; line-height: 1.3; }
   #swatter .out.win { color: #6ef0a0; } #swatter .out.lose { color: #ff7a59; }
   #swatter .snote { margin-top: 6px; font-size: 9.5px; color: #8893b4; line-height: 1.3; }
+  #sniff { background: rgba(14,18,30,.74); backdrop-filter: blur(8px);
+    border: 1px solid rgba(120,140,190,.16); border-radius: 12px; padding: 11px 13px;
+    width: 196px; pointer-events: auto; }
+  #sniff .th { font-size: 11px; color: #cdd6ee; margin-bottom: 8px; }
+  #sniff .big { font-size: 22px; font-weight: 700; color: #7fd1a8; font-variant-numeric: tabular-nums;
+    line-height: 1; } #sniff .big span { font-size: 11px; font-weight: 400; color: #8893b4; }
+  #sniff .leg { display: flex; gap: 12px; margin: 8px 0 4px; font-size: 10.5px; }
+  #sniff .leg b { font-weight: 600; } #sniff .leg .a b { color: #ffae5e; } #sniff .leg .b b { color: #6ef0a0; }
+  #sniff .row { display: flex; justify-content: space-between; font-size: 11px; color: #cdd6ee; margin: 3px 0; }
+  #sniff .row b { color: #7fd1a8; font-variant-numeric: tabular-nums; }
+  #sniff .snote { margin-top: 7px; font-size: 10px; color: #8893b4; line-height: 1.35; }
   #math .th { font-size: 10.5px; color: #8893b4; margin-bottom: 5px;
     text-transform: uppercase; letter-spacing: .4px; }
   #math .msum { font-size: 19px; color: #e9eefc; margin: 2px 0 3px;
@@ -192,7 +203,7 @@
         <span><i class="dot" style="color:#5a6a96;background:#5a6a96"></i> full brain</span>
       </div>
     </div>
-    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div><div id="compass"></div><div id="arena"></div><div id="path"></div><div id="swatter"></div></div>
+    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div><div id="compass"></div><div id="arena"></div><div id="path"></div><div id="swatter"></div><div id="sniff"></div></div>
     <div id="empty">the brain will appear here when you ask a question</div>
     <div id="tip"></div>
     <div id="hud">
@@ -539,6 +550,22 @@ function swatNow(){
   }, 1400);
 }
 
+function setSniff(sn){
+  const el = document.getElementById('sniff');
+  if (!sn){ el.style.display = 'none'; return; }
+  el.innerHTML = '<div class="th">two smells, two memories</div>'
+    + '<div class="big">' + (100*sn.overlap).toFixed(1) + '% <span>code overlap</span></div>'
+    + '<div class="leg"><span class="a">odor <b>A</b></span><span class="b">odor <b>B</b></span></div>'
+    + '<div class="row"><span>A active</span><b>' + (100*sn.kc_active_A).toFixed(1) + '%</b></div>'
+    + '<div class="row"><span>B active</span><b>' + (100*sn.kc_active_B).toFixed(1) + '%</b></div>'
+    + '<div class="row"><span>shared cells</span><b>' + sn.shared_kc + ' of ' + sn.n_kc + '</b></div>'
+    + '<div class="row"><span>false memory*</span><b>' + Math.round(100*sn.false_memory) + '%</b></div>'
+    + '<div class="snote">each smell lights up its own near-private sliver of Kenyon cells, so a '
+    + 'new memory barely touches an old one — how the fly sidesteps catastrophic forgetting. '
+    + '*after teaching ' + sn.n_taught + ' odors. mechanism, not a benchmark.</div>';
+  el.style.display = 'block';
+}
+
 function setData(D){
   document.getElementById('empty').style.display = 'none';
   if (D.ghost) buildGhost(D.ghost);
@@ -606,13 +633,14 @@ function setData(D){
   DUR = D.dur_ms; tNow = 0; holdT = 0;
   document.getElementById('cap').textContent = D.math
     ? 'the fly-neuron gates that did the math'
-    : (D.swatter ? 'looming detectors converge on the Giant Fiber'
+    : (D.sniff ? 'odor A lights up, then odor B — different cells'
+       : (D.swatter ? 'looming detectors converge on the Giant Fiber'
        : (D.path ? 'signal travels hop-by-hop along the wiring'
        : (D.fly ? 'exciting descending neurons → the body moves'
           : (D.compass ? 'cue → hold → turn: the heading bump on a loop'
              : (D.gate ? 'cycling every input combination'
                 : (D.neurons.length ? ('replaying the first ' + DUR + ' ms, on a loop')
-                                    : 'the whole brain, at rest'))))));
+                                    : 'the whole brain, at rest')))))));
   setEnergy(D.energy);
   setGate(D.gate);
   setMath(D.math);
@@ -620,6 +648,7 @@ function setData(D){
   setFly(D.fly);
   setPath(D.path);
   setSwatter(D.swatter);
+  setSniff(D.sniff);
   if (D.path && D.path.found && lines) lines.visible = true;   // the chain IS the point
 }
 

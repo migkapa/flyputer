@@ -540,6 +540,44 @@ def build_path_scene(start, end, min_syn=5, hop_ms=280):
     }
 
 
+def build_sniff_scene(seedA=1, seedB=2, phase_ms=260):
+    """3D scene of two odors as near-disjoint KENYON-CELL constellations: odor A's cells light
+    up (green), then odor B's (orange), interspersed in the mushroom body but barely sharing a
+    cell. Returns the lit neurons + a `sniff` block with the sparsity/overlap/false-memory
+    numbers. No energy ledger — this is a coding-geometry demo, not a spiking computation."""
+    import sniff
+    r = sniff.run_experiment(seedA, seedB)
+    C = sniff.circuit()
+    kc = C["kc"]
+    cA, cB = r["codes"]["A"], r["codes"]["B"]
+    P = _positions()
+    c, s = _transform()
+    neurons = []
+    for i, nid in enumerate(kc):
+        inA, inB = bool(cA[i]), bool(cB[i])
+        if not (inA or inB) or nid not in P:
+            continue
+        x, y, z = (np.array(P[nid]) - c) * s
+        role = "downstream" if (inA and inB) else ("input" if inA else "output")
+        t = [20.0 if inA else (20.0 + phase_ms)]        # A lights first, then B
+        neurons.append({"x": round(float(x), 2), "y": round(float(y), 2), "z": round(float(z), 2),
+                        "role": role, "type": "KC (odor %s)" % ("A&B" if inA and inB else ("A" if inA else "B")),
+                        "t": t})
+    return {
+        "title": "Two smells, two near-disjoint memories",
+        "query": "sniff", "dur_ms": 2 * phase_ms,
+        "n_input": sum(1 for n in neurons if n["role"] == "input"),
+        "n_downstream": sum(1 for n in neurons if n["role"] != "input"),
+        "top_downstream_types": ["Kenyon cells"],
+        "neurons": neurons, "edges": [], "ghost": _ghost(), "heroes": [],
+        "sniff": {
+            "n_kc": len(kc), "kc_active_A": r["kc_active_A"], "kc_active_B": r["kc_active_B"],
+            "overlap": r["kc_overlap"], "shared_kc": r["shared_kc"],
+            "false_memory": r["false_memory"], "n_taught": r["n_taught"], "phase_ms": phase_ms,
+        },
+    }
+
+
 def build_swatter_scene(demo_swing_ms=220):
     """3D scene of the real escape circuit reacting to a looming swatter: LPLC2+LC4 detectors
     charge and CONVERGE onto the 2 Giant Fiber (DNp01) cells, which spike -> lunge. Returns
