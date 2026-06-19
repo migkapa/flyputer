@@ -35,6 +35,7 @@ Act by emitting exactly ONE JSON object per turn, nothing else:
   {"tool": "show_compass", "args": {"regime": "raw"}}
   {"tool": "move_fly", "args": {"moves": ["forward", "left", "forward", "escape"]}}
   {"tool": "navigate_fly", "args": {"start_heading": 120}}
+  {"tool": "show_path", "args": {"start": "sugar", "end": "motor"}}
   {"tool": "find_neurons", "args": {"query": "mushroom body"}}
   {"final": "your short, friendly plain-English answer"}
 
@@ -65,6 +66,12 @@ Tools:
   preferred heading while it walks — it homes and then holds a straight course. Use when the
   user asks the fly to navigate, home, hold a course, steer itself, find its heading, or
   asks about closed-loop / the compass driving behavior.
+- show_path(start, end): "six degrees of the fly brain" — trace ONE shortest WIRING path
+  between two regions/cell-types and light it up hop-by-hop in 3D (e.g. sugar->motor,
+  smell->escape, eye->wing, clock->everything). It is pure connectivity (how many synapses
+  apart two neurons are), NOT firing/timing — say "A shortest path", never "the" path, and
+  never claim signal timing. Use when the user asks how two things connect, how far apart
+  neurons are, what links X to Y, or to trace/route a signal across the brain.
 - find_neurons(query): look up neurons by name/region.
 
 Every scene comes back with an energy ledger comparing the fly brain to a computer chip.
@@ -153,6 +160,16 @@ def run_agent(message, max_steps=8):
                 "released_at_deg": f["start_deg"], "homed_to_deg": f["goal_deg"],
                 "final_error_deg": f["final_err_deg"], "energy": data["energy"]["headline"]}
 
+    def show_path(start="sugar", end="motor"):
+        data = export3d.build_path_scene(str(start), str(end))
+        viz["data"] = data
+        p = data["path"]
+        if not p.get("found"):
+            return {"error": "no path %s -> %s: %s" % (start, end, p.get("reason", ""))}
+        return {"shown_in_3d": True, "scene": "path", "start": start, "end": end,
+                "n_synapses": p["n_synapses"], "chain": " -> ".join(p["hops"]),
+                "note": "a shortest wiring path (topology, not signal timing)"}
+
     tools = dict(flysim.TOOLS)
     tools["show3d"] = show3d
     tools["show_logic_gate"] = show_logic_gate
@@ -160,6 +177,7 @@ def run_agent(message, max_steps=8):
     tools["show_compass"] = show_compass
     tools["move_fly"] = move_fly
     tools["navigate_fly"] = navigate_fly
+    tools["show_path"] = show_path
     msgs = [{"role": "system", "content": SYSTEM},
             {"role": "user", "content": message}]
     for _ in range(max_steps):
@@ -252,6 +270,10 @@ def serve(open_browser=True):
         try:
             import flymath
             flymath._gates()
+        except Exception:
+            pass
+        try:
+            flysim._ensure_adj()          # routing adjacency, so first show_path is instant
         except Exception:
             pass
     threading.Thread(target=_warm, daemon=True).start()

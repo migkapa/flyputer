@@ -488,6 +488,58 @@ def build_navigate_scene(start_heading_deg=120.0, steps=64, phases=10):
     }
 
 
+def build_path_scene(start, end, min_syn=5, hop_ms=280):
+    """3D 'six degrees of the fly brain' scene: ONE shortest WIRING path from start to end,
+    each neuron a real arbor that lights up in sequence along the chain. Pure topology — no
+    firing rates, no energy claims — so there is intentionally no energy ledger here."""
+    r = flysim.find_path(start, end, min_syn=min_syn)
+    if not r.get("found"):
+        return {"title": "No path: %s → %s" % (start, end), "query": "path", "dur_ms": 1,
+                "n_input": 0, "n_downstream": 0, "top_downstream_types": [],
+                "neurons": [], "edges": [], "ghost": _ghost(), "heroes": [],
+                "path": {"found": False, "start": start, "end": end,
+                         "reason": r.get("reason", "no path")}}
+
+    path = r["path"]
+    P = _positions()
+    c, s = _transform()
+    n = len(path)
+    neurons, heroes, idx_ok = [], [], []
+    for k, nid in enumerate(path):
+        pts = _hero_arbor(nid)
+        if pts:
+            x, y, z = np.asarray(pts, dtype=np.float64).reshape(-1, 3).mean(axis=0)
+        elif nid in P:
+            x, y, z = (np.array(P[nid]) - c) * s
+        else:
+            continue
+        role = "input" if k == 0 else ("output" if k == n - 1 else "downstream")
+        t = [round(k * hop_ms + 1.0, 1)]            # lights up at its hop -> sequential travel
+        lab = r["hops"][k]["label"]
+        neurons.append({"x": round(float(x), 2), "y": round(float(y), 2), "z": round(float(z), 2),
+                        "role": role, "type": lab, "t": t})
+        idx_ok.append(k)
+        if pts:
+            heroes.append({"role": role, "type": lab, "t": t, "pts": pts})
+
+    # chain edges between consecutive nodes that made it into `neurons`
+    pos = {k: i for i, k in enumerate(idx_ok)}
+    edges = [[pos[k], pos[k + 1]] for k in idx_ok if (k + 1) in pos]
+
+    return {
+        "title": "Six degrees: %s → %s" % (start, end),
+        "query": "path", "dur_ms": n * hop_ms,
+        "n_input": 1, "n_downstream": max(0, n - 1),
+        "top_downstream_types": [h["label"] for h in r["hops"][1:]][:6],
+        "neurons": neurons, "edges": edges, "ghost": _ghost(), "heroes": heroes,
+        "path": {
+            "found": True, "start": start, "end": end,
+            "n_synapses": r["n_synapses"], "min_syn": r["min_syn"], "hop_ms": hop_ms,
+            "hops": [h["label"] for h in r["hops"]], "hop_synapses": r["hop_synapses"],
+        },
+    }
+
+
 def build_math_scene(x, y, op="add", phase_ms=200):
     """3D scene of the fly-neuron 'calculator' computing x (+ or x) y: the gate motif
     neurons as arbors, plus the binary result and the energy the computation cost."""

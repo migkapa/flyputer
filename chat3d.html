@@ -105,6 +105,23 @@
   #arena .amove .dn { margin-left: auto; font-size: 10px; color: #6f7ca0;
     font-variant-numeric: tabular-nums; }
   #arena .anote { margin-top: 6px; font-size: 10px; color: #8893b4; line-height: 1.35; }
+  #path { background: rgba(14,18,30,.74); backdrop-filter: blur(8px);
+    border: 1px solid rgba(120,140,190,.16); border-radius: 12px; padding: 11px 13px;
+    width: 196px; pointer-events: auto; }
+  #path .th { font-size: 11px; color: #cdd6ee; margin-bottom: 8px; }
+  #path .big { font-size: 22px; font-weight: 700; color: #7fd1a8; font-variant-numeric: tabular-nums;
+    line-height: 1; margin-bottom: 2px; }
+  #path .big span { font-size: 11px; font-weight: 400; color: #8893b4; }
+  #path .chain { margin-top: 9px; }
+  #path .node { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: #cdd6ee;
+    padding: 2px 0; transition: color .15s, opacity .15s; opacity: .5; }
+  #path .node.on { color: #6ef0a0; opacity: 1; }
+  #path .node .dot { width: 7px; height: 7px; border-radius: 50%; flex: none;
+    background: #4a5570; transition: background .15s; }
+  #path .node.on .dot { background: #6ef0a0; box-shadow: 0 0 7px #6ef0a0; }
+  #path .syn { font-size: 9.5px; color: #6f7ca0; margin: 0 0 0 3px; padding-left: 3px;
+    border-left: 1px dashed rgba(120,140,190,.3); }
+  #path .pnote { margin-top: 8px; font-size: 10px; color: #8893b4; line-height: 1.35; }
   #math .th { font-size: 10.5px; color: #8893b4; margin-bottom: 5px;
     text-transform: uppercase; letter-spacing: .4px; }
   #math .msum { font-size: 19px; color: #e9eefc; margin: 2px 0 3px;
@@ -152,7 +169,7 @@
         <span><i class="dot" style="color:#5a6a96;background:#5a6a96"></i> full brain</span>
       </div>
     </div>
-    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div><div id="compass"></div><div id="arena"></div></div>
+    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div><div id="compass"></div><div id="arena"></div><div id="path"></div></div>
     <div id="empty">the brain will appear here when you ask a question</div>
     <div id="tip"></div>
     <div id="hud">
@@ -169,8 +186,9 @@
     <div id="sugg">
       <button>What happens when the fly smells something?</button>
       <button>Show an AND gate in the brain</button>
+      <button>Trace the path from sugar to motor</button>
+      <button>How does smell connect to escape?</button>
       <button>Add 2 + 3 with the fly brain</button>
-      <button>Stimulate the mushroom body</button>
     </div>
     <form id="form">
       <input id="msg" autocomplete="off" placeholder="ask to show / stimulate a circuit...">
@@ -405,6 +423,32 @@ function updateFly(t){
   if (cur && lbl){ lbl.textContent = cur.label; dn.textContent = cur.dn + (cur.side ? ' ('+cur.side+')' : ''); }
 }
 
+function setPath(p){
+  const el = document.getElementById('path');
+  if (!p || !p.found){ el.style.display = 'none'; window._path = null; return; }
+  window._path = p;
+  let chain = '';
+  for (let i=0;i<p.hops.length;i++){
+    chain += '<div class="node" data-h="'+i+'"><span class="dot"></span>' + p.hops[i] + '</div>';
+    if (i < p.hop_synapses.length)
+      chain += '<div class="syn">' + p.hop_synapses[i] + ' synapses ↓</div>';
+  }
+  el.innerHTML = '<div class="th">six degrees of the fly brain</div>'
+    + '<div class="big">' + p.n_synapses + ' <span>synapse' + (p.n_synapses==1?'':'s') + ' apart</span></div>'
+    + '<div class="th" style="color:#8893b4">' + p.start + ' → ' + p.end + '</div>'
+    + '<div class="chain">' + chain + '</div>'
+    + '<div class="pnote">a shortest wiring path (≥' + p.min_syn + ' synapses/edge) — connectivity, not signal timing</div>';
+  el.style.display = 'block';
+}
+
+function updatePath(t){
+  const p = window._path, el = document.getElementById('path');
+  if (!p || !el || el.style.display === 'none') return;
+  const reached = Math.min(p.hops.length - 1, Math.floor(t / p.hop_ms));
+  const nodes = el.querySelectorAll('.node');
+  for (let i=0;i<nodes.length;i++) nodes[i].classList.toggle('on', i <= reached);
+}
+
 function setData(D){
   document.getElementById('empty').style.display = 'none';
   if (D.ghost) buildGhost(D.ghost);
@@ -458,10 +502,12 @@ function setData(D){
     }
     const lg = new THREE.BufferGeometry();
     lg.setAttribute('position', new THREE.BufferAttribute(ep,3));
+    const isPath = !!(D.path && D.path.found);
     lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({
-      color: 0x33aa66, transparent: true, opacity: 0.05, depthTest: false,
+      color: isPath ? 0x6ef0a0 : 0x33aa66, transparent: true,
+      opacity: isPath ? 0.85 : 0.05, depthTest: false,
       blending: THREE.AdditiveBlending }));
-    lines.visible = document.getElementById('edges').checked; scene.add(lines);
+    lines.visible = isPath || document.getElementById('edges').checked; scene.add(lines);
   }
   for (const H of heroes){ scene.remove(H.points); H.points.geometry.dispose(); H.points.material.dispose(); }
   heroes = [];
@@ -470,16 +516,19 @@ function setData(D){
   DUR = D.dur_ms; tNow = 0; holdT = 0;
   document.getElementById('cap').textContent = D.math
     ? 'the fly-neuron gates that did the math'
-    : (D.fly ? 'exciting descending neurons → the body moves'
-       : (D.compass ? 'cue → hold → turn: the heading bump on a loop'
-          : (D.gate ? 'cycling every input combination'
-             : (D.neurons.length ? ('replaying the first ' + DUR + ' ms, on a loop')
-                                 : 'the whole brain, at rest'))));
+    : (D.path ? 'signal travels hop-by-hop along the wiring'
+       : (D.fly ? 'exciting descending neurons → the body moves'
+          : (D.compass ? 'cue → hold → turn: the heading bump on a loop'
+             : (D.gate ? 'cycling every input combination'
+                : (D.neurons.length ? ('replaying the first ' + DUR + ' ms, on a loop')
+                                    : 'the whole brain, at rest')))));
   setEnergy(D.energy);
   setGate(D.gate);
   setMath(D.math);
   setCompass(D.compass);
   setFly(D.fly);
+  setPath(D.path);
+  if (D.path && D.path.found && lines) lines.visible = true;   // the chain IS the point
 }
 
 function frame(){
@@ -509,6 +558,7 @@ function frame(){
     }
     if (window._compass){ updateCompass(tNow); }
     if (window._fly){ updateFly(tNow); }
+    if (window._path){ updatePath(tNow); }
   }
   controls.update();
   renderer.render(scene, camera);
