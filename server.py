@@ -39,6 +39,7 @@ Act by emitting exactly ONE JSON object per turn, nothing else:
   {"tool": "dodge_swatter", "args": {}}
   {"tool": "two_smells", "args": {}}
   {"tool": "show_eye", "args": {"pattern": "heart"}}
+  {"tool": "fly_the_fly", "args": {}}
   {"tool": "find_neurons", "args": {"query": "mushroom body"}}
   {"final": "your short, friendly plain-English answer"}
 
@@ -92,6 +93,10 @@ Tools:
   cells in 3D + the input vs medulla images. Use when the user asks about vision, the eye,
   seeing an image, the optic lobe, lamina/medulla, or "show X on the fly's eye". (Honest: a
   ~750-column retinotopic sensor / brain's-eye view, NOT a camera; no real optics or motion.)
+- fly_the_fly(): start the PLAYABLE pilot game — the user drives a virtual fly with the arrow
+  keys / WASD, and each key fires a REAL descending command neuron (forward DNp09, back MDN,
+  steer DNa02, escape DNp01) that lights up in 3D as the fly forages food in a top-down arena.
+  Use when the user wants to pilot/drive/control/fly the fly, play a game, or use the keyboard.
 - find_neurons(query): look up neurons by name/region.
 
 Every scene comes back with an energy ledger comparing the fly brain to a computer chip.
@@ -231,8 +236,19 @@ def run_agent(message, max_steps=8):
                         "~750-column brain's-eye view, not a camera"}
 
     tools["dodge_swatter"] = dodge_swatter
+    def fly_the_fly():
+        data = export3d.build_pilot_scene()
+        viz["data"] = data
+        return {"shown_in_3d": True, "scene": "pilot", "playable": True,
+                "controls": "arrow keys / WASD drive forward (DNp09), back (MDN), steer "
+                            "(DNa02); space = escape (Giant Fiber)",
+                "command_neurons": data["pilot"]["command_neurons"],
+                "note": "each key fires a real descending command neuron; the body is a "
+                        "stand-in for the unloaded VNC"}
+
     tools["two_smells"] = two_smells
     tools["show_eye"] = show_eye
+    tools["fly_the_fly"] = fly_the_fly
     msgs = [{"role": "system", "content": SYSTEM},
             {"role": "user", "content": message}]
     for _ in range(max_steps):
@@ -344,6 +360,11 @@ def serve(open_browser=True):
         try:
             import optic
             optic.optic()                 # warm the retinotopic relay
+        except Exception:
+            pass
+        try:
+            import fly
+            fly.pilot_setup()             # warm the pilot command-neuron motor primitives
         except Exception:
             pass
     threading.Thread(target=_warm, daemon=True).start()

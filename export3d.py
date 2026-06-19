@@ -578,6 +578,48 @@ def build_sniff_scene(seedA=1, seedB=2, phase_ms=260):
     }
 
 
+def build_pilot_scene():
+    """Interactive 'fly the fly' scene: the real descending COMMAND neurons placed in 3D, plus
+    a `pilot` block mapping keys → {behavior, motor params, which neurons to glow}. The browser
+    runs the game loop live; pressing a key drives the corresponding real DN (it lights up) and
+    moves a virtual fly in a top-down arena. Body = labelled VNC stand-in; commands are real."""
+    import fly
+    pilot = fly.pilot_setup()
+    P = _positions()
+    c, s = _transform()
+    neurons, id2idx = [], {}
+
+    def add(nid):
+        if nid in id2idx:
+            return id2idx[nid]
+        if nid not in P:
+            return None
+        x, y, z = (np.array(P[nid]) - c) * s
+        id2idx[nid] = len(neurons)
+        neurons.append({"x": round(float(x), 2), "y": round(float(y), 2), "z": round(float(z), 2),
+                        "role": "output", "type": flysim.LABEL.get(nid, "?"), "t": []})
+        return id2idx[nid]
+
+    controls = {}
+    for key, beh_name in fly.CONTROLS.items():
+        b = pilot[beh_name]
+        idxs = [i for i in (add(n) for n in b["dn_ids"]) if i is not None]
+        controls[key] = {"behavior": beh_name, "dn": b["dn"], "side": b["side"],
+                         "v": b["v"], "w": b["w"], "label": b["label"],
+                         "fires": b["fires"], "neuronIdx": idxs}
+
+    food = [[0.62, 0.42], [-0.55, 0.5], [0.32, -0.62], [-0.62, -0.32], [0.02, 0.72], [0.72, -0.12]]
+    return {
+        "title": "Pilot a real fly brain",
+        "query": "pilot", "dur_ms": 200,
+        "n_input": 0, "n_downstream": len(neurons),
+        "top_downstream_types": sorted({n["type"] for n in neurons})[:6],
+        "neurons": neurons, "edges": [], "ghost": _ghost(), "heroes": [],
+        "pilot": {"controls": controls, "food": food,
+                  "command_neurons": len(neurons)},
+    }
+
+
 def build_optic_scene(pattern="heart", phase_ms=280, grid=22):
     """3D scene of a picture relayed through the fly's real optic lobe: the image lights up the
     L1 lamina columns (input), then travels along the real ~66k-synapse L1→Mi1 wiring into the
