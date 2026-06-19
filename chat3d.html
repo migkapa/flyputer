@@ -189,6 +189,25 @@
   #pilot .keys b { color: #cdd6ee; font-weight: 600; }
   #pilot .msg { margin-top: 5px; font-size: 11px; color: #6ef0a0; min-height: 14px; text-align: center; }
   #pilot .pnote { margin-top: 5px; font-size: 9.5px; color: #8893b4; line-height: 1.3; }
+  #drone { background: rgba(14,18,30,.78); backdrop-filter: blur(8px);
+    border: 1px solid rgba(120,140,190,.16); border-radius: 12px; padding: 11px 13px;
+    width: 196px; pointer-events: auto; }
+  #drone .th { font-size: 11px; color: #cdd6ee; margin-bottom: 4px; display: flex; justify-content: space-between; }
+  #drone .th .st { color: #8893b4; font-variant-numeric: tabular-nums; }
+  #drone svg.field { width: 170px; height: 170px; display: block; margin: 2px auto 4px; }
+  #drone .afld { fill: rgba(120,140,190,.05); stroke: rgba(120,140,190,.2); stroke-width: .8; }
+  #drone .obs { fill: rgba(255,122,89,.18); stroke: #ff7a59; stroke-width: 1; }
+  #drone .trail { fill: none; stroke: #7fd1a8; stroke-width: 1.2; opacity: .4; }
+  #drone .quad line { stroke: #cdd6ee; stroke-width: 1.4; stroke-linecap: round; }
+  #drone .quad .rotor { fill: #6ef0a0; }
+  #drone .quad .nose { stroke: #6ef0a0; stroke-width: 1.8; }
+  #drone .quad.avoid line, #drone .quad.avoid .nose { stroke: #ff7a59; }
+  #drone .quad.avoid .rotor { fill: #ff7a59; }
+  #drone .tele { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  #drone .tele .lbl { font-size: 11px; font-weight: 700; color: #7fd1a8; min-width: 96px;
+    font-variant-numeric: tabular-nums; }
+  #drone .tele .lbl.avoid { color: #ff7a59; }
+  #drone .dnote { margin-top: 6px; font-size: 9.5px; color: #8893b4; line-height: 1.3; }
   #math .th { font-size: 10.5px; color: #8893b4; margin-bottom: 5px;
     text-transform: uppercase; letter-spacing: .4px; }
   #math .msum { font-size: 19px; color: #e9eefc; margin: 2px 0 3px;
@@ -250,8 +269,9 @@
       <button data-demo="smells">Two smells</button>
       <button data-demo="eye">Fly's eye</button>
       <button data-demo="pilot">Pilot 🎮</button>
+      <button data-demo="drone">Drone autopilot</button>
     </div>
-    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div><div id="compass"></div><div id="arena"></div><div id="path"></div><div id="swatter"></div><div id="sniff"></div><div id="optic"></div><div id="pilot"></div></div>
+    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div><div id="compass"></div><div id="arena"></div><div id="path"></div><div id="swatter"></div><div id="sniff"></div><div id="optic"></div><div id="pilot"></div><div id="drone"></div></div>
     <div id="empty">the brain will appear here when you ask a question</div>
     <div id="tip"></div>
     <div id="hud">
@@ -710,6 +730,54 @@ function tickPilot(dt){
   if (!p.food.length && !p.won){ p.won = true; p.msgEl.textContent = 'all food caught! 🪰 nice flying'; }
 }
 
+function setDrone(d){
+  const el = document.getElementById('drone');
+  if (!d || !d.traj || !d.traj.length){ el.style.display = 'none'; window._drone = null; return; }
+  const xs = d.traj.map(p => p[0]).concat(d.obstacles.map(o => o[0]));
+  const ys = d.traj.map(p => p[1]).concat(d.obstacles.map(o => o[1]));
+  const minx = Math.min(...xs), maxx = Math.max(...xs), miny = Math.min(...ys), maxy = Math.max(...ys);
+  const sp = 0.92 * Math.min(84 / Math.max(1e-3, maxx - minx), 84 / Math.max(1e-3, maxy - miny));
+  const cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
+  const toX = x => 50 + (x - cx) * sp, toY = y => 50 - (y - cy) * sp;   // y-up
+  let obsSVG = '';
+  for (const o of d.obstacles) obsSVG += '<circle class="obs" cx="'+toX(o[0]).toFixed(1)+'" cy="'+toY(o[1]).toFixed(1)+'" r="'+(o[2]*sp).toFixed(1)+'"/>';
+  el.innerHTML = '<div class="th"><span>drone autopilot</span><span class="st">dodged <b>'+d.dodges+'</b></span></div>'
+    + '<svg viewBox="0 0 100 100" class="field"><rect class="afld" x="6" y="6" width="88" height="88" rx="4"/>'
+    +   obsSVG + '<polyline class="trail" points=""/>'
+    +   '<g class="quad" transform="translate(50,50)">'
+    +     '<line x1="-5" y1="-5" x2="5" y2="5"/><line x1="-5" y1="5" x2="5" y2="-5"/>'
+    +     '<circle class="rotor" cx="-5" cy="-5" r="2"/><circle class="rotor" cx="5" cy="-5" r="2"/>'
+    +     '<circle class="rotor" cx="-5" cy="5" r="2"/><circle class="rotor" cx="5" cy="5" r="2"/>'
+    +     '<line class="nose" x1="0" y1="0" x2="9" y2="0"/></g>'
+    + '</svg>'
+    + '<div class="tele"><span class="lbl">stabilizing…</span></div>'
+    + '<div class="dnote">compass (EPG→DNa02) holds the heading; looming→Giant-Fiber (LPLC2/LC4→DNp01) '
+    + 'dodges. 2D sim, real-circuit control — not waypoint guidance or real flight.</div>';
+  el.style.display = 'block';
+  window._drone = { d, toX, toY, quad: el.querySelector('.quad'), trail: el.querySelector('.trail'),
+                    lbl: el.querySelector('.tele .lbl') };
+}
+
+function updateDrone(t){
+  const D = window._drone; if (!D) return;
+  const tr = D.d.traj, n = tr.length;
+  const i = Math.min(n - 1, Math.max(0, Math.floor(t / DUR * (n - 1))));
+  const p = tr[i];
+  D.quad.setAttribute('transform', 'translate(' + D.toX(p[0]).toFixed(1) + ',' + D.toY(p[1]).toFixed(1)
+    + ') rotate(' + (-p[2]).toFixed(1) + ')');
+  const avoiding = p[3] === 1;
+  D.quad.classList.toggle('avoid', avoiding);
+  let pts = '';
+  for (let j = 0; j <= i; j += 1) pts += D.toX(tr[j][0]).toFixed(1) + ',' + D.toY(tr[j][1]).toFixed(1) + ' ';
+  D.trail.setAttribute('points', pts);
+  D.lbl.classList.toggle('avoid', avoiding);
+  D.lbl.textContent = avoiding ? '⚠ AVOID — Giant Fiber' : ('hold ' + Math.round(p[2]) + '°');
+  if (glow){                         // light up the active circuit in the 3D brain
+    const ids = avoiding ? D.d.avoidIdx : D.d.steerIdx;
+    for (const k of ids) if (k < glow.length) glow[k] = 1.0;
+  }
+}
+
 function setData(D){
   document.getElementById('empty').style.display = 'none';
   if (D.ghost) buildGhost(D.ghost);
@@ -777,7 +845,8 @@ function setData(D){
   DUR = D.dur_ms; tNow = 0; holdT = 0;
   document.getElementById('cap').textContent = D.math
     ? 'the fly-neuron gates that did the math'
-    : (D.pilot ? 'your keys fire real descending command neurons'
+    : (D.drone ? 'compass holds the heading · Giant Fiber dodges'
+       : (D.pilot ? 'your keys fire real descending command neurons'
        : (D.optic ? 'a picture travels lamina → medulla on real wiring'
        : (D.sniff ? 'odor A lights up, then odor B — different cells'
        : (D.swatter ? 'looming detectors converge on the Giant Fiber'
@@ -786,7 +855,7 @@ function setData(D){
           : (D.compass ? 'cue → hold → turn: the heading bump on a loop'
              : (D.gate ? 'cycling every input combination'
                 : (D.neurons.length ? ('replaying the first ' + DUR + ' ms, on a loop')
-                                    : 'the whole brain, at rest')))))))));
+                                    : 'the whole brain, at rest'))))))))));
   setEnergy(D.energy);
   setGate(D.gate);
   setMath(D.math);
@@ -797,6 +866,7 @@ function setData(D){
   setSniff(D.sniff);
   setOptic(D.optic);
   setPilot(D.pilot);
+  setDrone(D.drone);
   if (D.path && D.path.found && lines) lines.visible = true;   // the chain IS the point
 }
 
@@ -829,6 +899,7 @@ function frame(){
     if (window._compass){ updateCompass(tNow); }
     if (window._fly){ updateFly(tNow); }
     if (window._path){ updatePath(tNow); }
+    if (window._drone){ updateDrone(tNow); }
   }
   if (window._swatter){ tickSwatter(); }
   controls.update();

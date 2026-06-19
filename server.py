@@ -40,6 +40,7 @@ Act by emitting exactly ONE JSON object per turn, nothing else:
   {"tool": "two_smells", "args": {}}
   {"tool": "show_eye", "args": {"pattern": "heart"}}
   {"tool": "fly_the_fly", "args": {}}
+  {"tool": "drone_autopilot", "args": {}}
   {"tool": "find_neurons", "args": {"query": "mushroom body"}}
   {"final": "your short, friendly plain-English answer"}
 
@@ -97,6 +98,12 @@ Tools:
   keys / WASD, and each key fires a REAL descending command neuron (forward DNp09, back MDN,
   steer DNa02, escape DNp01) that lights up in 3D as the fly forages food in a top-down arena.
   Use when the user wants to pilot/drive/control/fly the fly, play a game, or use the keyboard.
+- drone_autopilot(): fly a SIMULATED drone with the fly brain as the autopilot — the compass
+  (EPG->PFL3->DNa02) stabilizes its heading (course-hold) and the looming->Giant-Fiber reflex
+  (LPLC2/LC4->DNp01) dodges obstacles, with the steering vs avoidance neurons glowing in 3D.
+  Use when the user asks about a drone, autopilot, flight control, course/heading hold, or
+  obstacle avoidance. Honest: a 2D kinematic sim, qualitative real-circuit control (heading
+  stabilization + avoidance reflex), NOT waypoint guidance and NOT real flight dynamics; no HW.
 - find_neurons(query): look up neurons by name/region.
 
 Every scene comes back with an energy ledger comparing the fly brain to a computer chip.
@@ -246,9 +253,20 @@ def run_agent(message, max_steps=8):
                 "note": "each key fires a real descending command neuron; the body is a "
                         "stand-in for the unloaded VNC"}
 
+    def drone_autopilot():
+        data = export3d.build_drone_scene()
+        viz["data"] = data
+        d = data["drone"]
+        return {"shown_in_3d": True, "scene": "drone",
+                "stabilized_heading_deg": d["intrinsic_deg"], "obstacles_dodged": d["dodges"],
+                "crashed": d["crashed"],
+                "note": "the compass holds the heading, the looming Giant-Fiber reflex dodges; "
+                        "a 2D sim with real-circuit control, not waypoint guidance or real flight"}
+
     tools["two_smells"] = two_smells
     tools["show_eye"] = show_eye
     tools["fly_the_fly"] = fly_the_fly
+    tools["drone_autopilot"] = drone_autopilot
     msgs = [{"role": "system", "content": SYSTEM},
             {"role": "user", "content": message}]
     for _ in range(max_steps):
@@ -305,6 +323,7 @@ def build_demo(name):
         "smells": lambda: export3d.build_sniff_scene(),
         "eye": lambda: export3d.build_optic_scene("heart"),
         "pilot": lambda: export3d.build_pilot_scene(),
+        "drone": lambda: export3d.build_drone_scene(),
     }
     fn = builders.get(n)
     return fn() if fn else None
@@ -399,6 +418,11 @@ def serve(open_browser=True):
         try:
             import fly
             fly.pilot_setup()             # warm the pilot command-neuron motor primitives
+        except Exception:
+            pass
+        try:
+            import drone
+            drone.autopilot()             # warm the drone autopilot (steering curve + GF threshold)
         except Exception:
             pass
     threading.Thread(target=_warm, daemon=True).start()

@@ -664,6 +664,62 @@ def build_optic_scene(pattern="heart", phase_ms=280, grid=22):
     }
 
 
+def build_drone_scene(release_deg=35.0):
+    """A fly-BRAIN autopilot flying a sim drone: the compass (EPG+DNa02) holds the course and
+    the looming->Giant-Fiber circuit (LPLC2/LC4+DNp01) dodges obstacles. Returns the relevant
+    real neurons in 3D + a `drone` block (trajectory, obstacles, telemetry) — the browser
+    replays the flight and glows the steering vs avoidance neurons as each fires."""
+    import drone
+    import fly
+    import compass as cp
+    res = drone.fly_mission(release_deg)
+
+    epg = cp._ids_of_type("EPG")
+    dna = fly.dn_ids("DNa02")
+    loom = cp._ids_of_type("LPLC2", "LC4")[:36]
+    gf = fly.dn_ids("DNp01")
+    P = _positions()
+    c, s = _transform()
+    neurons, steer_idx, avoid_idx = [], [], []
+
+    def add(nid, role, bucket):
+        if nid not in P:
+            return
+        x, y, z = (np.array(P[nid]) - c) * s
+        i = len(neurons)
+        neurons.append({"x": round(float(x), 2), "y": round(float(y), 2), "z": round(float(z), 2),
+                        "role": role, "type": flysim.LABEL.get(nid, "?"), "t": []})
+        bucket.append(i)
+    for nid in epg:
+        add(nid, "input", steer_idx)
+    for nid in dna:
+        add(nid, "output", steer_idx)
+    for nid in loom:
+        add(nid, "input", avoid_idx)
+    for nid in gf:
+        add(nid, "output", avoid_idx)
+
+    step = max(1, len(res["traj"]) // 200)
+    traj = [[round(float(x), 3), round(float(y), 3), round(float(np.degrees(th)), 1), int(av)]
+            for (x, y, th, av) in res["traj"][::step]]
+    obstacles = [[round(float(ox), 3), round(float(oy), 3), round(float(orad), 2)]
+                 for (ox, oy, orad) in res["obstacles"]]
+    return {
+        "title": "Fly-brain drone autopilot",
+        "query": "drone", "dur_ms": max(2000, len(traj) * 14),
+        "n_input": sum(1 for n in neurons if n["role"] == "input"),
+        "n_downstream": sum(1 for n in neurons if n["role"] == "output"),
+        "top_downstream_types": ["DNa02", "DNp01"],
+        "neurons": neurons, "edges": [], "ghost": _ghost(), "heroes": [],
+        "drone": {
+            "traj": traj, "obstacles": obstacles, "steerIdx": steer_idx, "avoidIdx": avoid_idx,
+            "intrinsic_deg": res["intrinsic_deg"], "dodges": res["dodges"],
+            "min_clearance": round(res["min_clearance"], 2), "crashed": res["crashed"],
+            "release_deg": res["release_deg"],
+        },
+    }
+
+
 def build_swatter_scene(demo_swing_ms=220):
     """3D scene of the real escape circuit reacting to a looming swatter: LPLC2+LC4 detectors
     charge and CONVERGE onto the 2 Giant Fiber (DNp01) cells, which spike -> lunge. Returns
