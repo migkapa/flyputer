@@ -32,6 +32,7 @@ Act by emitting exactly ONE JSON object per turn, nothing else:
   {"tool": "show3d", "args": {"query": "olfactory", "seeds": 40, "dur_ms": 200}}
   {"tool": "show_logic_gate", "args": {"kind": "AND"}}
   {"tool": "do_math", "args": {"a": 6, "b": 7, "op": "mul"}}
+  {"tool": "show_compass", "args": {"regime": "raw"}}
   {"tool": "find_neurons", "args": {"query": "mushroom body"}}
   {"final": "your short, friendly plain-English answer"}
 
@@ -45,6 +46,12 @@ Tools:
 - do_math(a, b, op): do arithmetic with real fly-neuron gates wired into an adder/multiplier.
   op is "add" or "mul". Keep a, b small (0-12). Shows the gate neurons in 3D, the binary
   working, and the energy it cost. Use when the user asks to add, multiply, or compute numbers.
+- show_compass(regime): demonstrate the central-complex COMPASS — real EPG ring neurons
+  that hold a heading like a memory. Shows a bump of activity form, then steer to track a
+  90-degree turn, in 3D with a live heading dial. regime is "raw" (sharp bump that forms
+  and steers) or "memory" (relaxed inhibition so the bump self-sustains with no input). Use
+  when the user asks about the compass, heading, navigation, memory, working memory, ring
+  attractor, the central complex, or "remembering" / state.
 - find_neurons(query): look up neurons by name/region.
 
 Every scene comes back with an energy ledger comparing the fly brain to a computer chip.
@@ -94,10 +101,23 @@ def run_agent(message, max_steps=8):
                 "binary": "%s %s %s = %s" % (m["x_bin"], m["sym"], m["y_bin"], m["result_bin"]),
                 "gate_ops": m["gate_ops"], "energy": data["energy"]["headline"]}
 
+    def show_compass(regime="raw"):
+        r = str(regime).lower().strip()
+        if r not in ("raw", "memory"):
+            r = "raw"
+        data = export3d.build_compass_scene(r)
+        viz["data"] = data
+        cm = data["compass"]
+        return {"shown_in_3d": True, "scene": "compass", "regime": r,
+                "ring_neurons": cm["n_ring"],
+                "cued_heading_deg": cm["theta0_deg"], "turned_to_deg": cm["turn_to_deg"],
+                "energy": data["energy"]["headline"]}
+
     tools = dict(flysim.TOOLS)
     tools["show3d"] = show3d
     tools["show_logic_gate"] = show_logic_gate
     tools["do_math"] = do_math
+    tools["show_compass"] = show_compass
     msgs = [{"role": "system", "content": SYSTEM},
             {"role": "user", "content": message}]
     for _ in range(max_steps):

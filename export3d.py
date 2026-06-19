@@ -284,6 +284,66 @@ def build_gate_scene(gate, phase_ms=200):
     }
 
 
+def build_compass_scene(regime="raw"):
+    """3D scene of the central-complex compass: the real EPG ring + PEN/PEG/Delta7 running
+    a CUE -> HOLD -> TURN protocol. The EPG bump lights up, holds, and steers to track the
+    turning cue. Returns neurons + spike timeline + a `compass` block (decoded heading over
+    time, phase boundaries) + the energy ledger. `regime` is 'raw' or 'memory'."""
+    import compass
+    params = compass.REGIMES.get(regime, compass.REGIMES["raw"])
+    res = compass.run_protocol(**params)
+    nodes, counts = res["nodes"], res["counts"]
+    is_ring, ang = res["is_ring"], res["ang"]
+
+    # per-neuron spike times over the full looped timeline
+    spk = {r: [] for r in range(len(nodes))}
+    for t, r in zip(res["st"].tolist(), res["si"].tolist()):
+        spk[int(r)].append(round(float(t), 1))
+
+    P = _positions()
+    c, s = _transform()
+    active = [r for r in range(len(nodes)) if counts[r] > 0 and nodes[r] in P]
+    neurons = []
+    for r in active:
+        x, y, z = (np.array(P[nodes[r]]) - c) * s
+        ts = spk[r]
+        if len(ts) > 140:
+            ts = ts[::max(1, len(ts) // 140)]
+        neurons.append({"x": round(float(x), 2), "y": round(float(y), 2),
+                        "z": round(float(z), 2),
+                        "role": "input" if is_ring[r] else "downstream",
+                        "type": flysim.LABEL.get(nodes[r], "?"), "t": ts})
+
+    # decoded heading trace (downsampled), degrees; null where the bump is silent
+    t_arr, head, R = res["t"], res["head"], res["R"]
+    step = max(1, len(t_arr) // 90)
+    trace = []
+    for i in range(0, len(t_arr), step):
+        h = head[i]
+        trace.append([round(float(t_arr[i]), 0),
+                      None if np.isnan(h) else round(float(np.degrees(h)), 1),
+                      round(float(R[i]), 3)])
+
+    ph = res["phases"]
+    ev = energy.synaptic_events(counts, res["W"])
+    return {
+        "title": "Fly compass: heading memory (%s)" % regime,
+        "query": "compass", "dur_ms": res["dur_ms"],
+        "n_input": int(is_ring.sum()),
+        "n_downstream": int(len(neurons) - sum(n["role"] == "input" for n in neurons)),
+        "top_downstream_types": ["EPG ring"],
+        "neurons": neurons, "edges": [], "ghost": _ghost(), "heroes": [],
+        "energy": energy.summary(ev),
+        "compass": {
+            "regime": regime, "dur_ms": res["dur_ms"],
+            "phases": {k: [round(float(a), 0), round(float(b), 0)] for k, (a, b) in ph.items()},
+            "theta0_deg": round(float(np.degrees(res["theta0"])), 0),
+            "turn_to_deg": round(float(np.degrees(res["turn_to"])), 0),
+            "n_ring": int(is_ring.sum()), "trace": trace,
+        },
+    }
+
+
 def build_math_scene(x, y, op="add", phase_ms=200):
     """3D scene of the fly-neuron 'calculator' computing x (+ or x) y: the gate motif
     neurons as arbors, plus the binary result and the energy the computation cost."""

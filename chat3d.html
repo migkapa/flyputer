@@ -67,6 +67,27 @@
   #truth .rb.robust { color: #6ef0a0; } #truth .rb.robust .dot { background: #6ef0a0; }
   #truth .rb.stable { color: #ffce7a; } #truth .rb.stable .dot { background: #ffce7a; }
   #truth .rb.fragile { color: #ff7a59; } #truth .rb.fragile .dot { background: #ff7a59; }
+  #compass { background: rgba(14,18,30,.74); backdrop-filter: blur(8px);
+    border: 1px solid rgba(120,140,190,.16); border-radius: 12px; padding: 11px 13px;
+    width: 196px; pointer-events: auto; }
+  #compass .th { font-size: 11px; color: #cdd6ee; margin-bottom: 8px; }
+  #compass .th .map { color: #8893b4; font-size: 10.5px; }
+  #compass .dialwrap { display: flex; justify-content: center; }
+  #compass svg.dial { width: 132px; height: 132px; }
+  #compass .rim { fill: rgba(120,140,190,.06); stroke: rgba(120,140,190,.28); stroke-width: 1.2; }
+  #compass .tick { stroke: rgba(120,140,190,.35); stroke-width: 1; }
+  #compass .card { fill: #6f7ca0; font-size: 9px; }
+  #compass .needle { stroke: #6ef0a0; stroke-width: 3; stroke-linecap: round;
+    transition: transform .08s linear; }
+  #compass .hub { fill: #cdd6ee; }
+  #compass .cphase { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  #compass .cphase .lbl { font-size: 11px; font-weight: 700; color: #7fd1a8;
+    font-variant-numeric: tabular-nums; min-width: 78px; }
+  #compass .cphase .rbar { flex: 1; height: 6px; background: rgba(120,140,190,.14);
+    border-radius: 3px; overflow: hidden; }
+  #compass .cphase .rbar i { display: block; height: 100%; width: 0; background: #6ef0a0;
+    border-radius: 3px; transition: width .1s linear; }
+  #compass .cnote { margin-top: 7px; font-size: 10.5px; color: #8893b4; line-height: 1.35; }
   #math .th { font-size: 10.5px; color: #8893b4; margin-bottom: 5px;
     text-transform: uppercase; letter-spacing: .4px; }
   #math .msum { font-size: 19px; color: #e9eefc; margin: 2px 0 3px;
@@ -114,7 +135,7 @@
         <span><i class="dot" style="color:#5a6a96;background:#5a6a96"></i> full brain</span>
       </div>
     </div>
-    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div></div>
+    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div><div id="compass"></div></div>
     <div id="empty">the brain will appear here when you ask a question</div>
     <div id="tip"></div>
     <div id="hud">
@@ -288,6 +309,34 @@ function setGate(g){
   el.style.display = 'block';
 }
 
+function setCompass(c){
+  const el = document.getElementById('compass');
+  if (!c){ el.style.display = 'none'; window._compass = null; return; }
+  window._compass = c;
+  let ticks = '';
+  const card = ['','','','']; const dirLbl = ['N','E','S','W'];
+  for (let k=0;k<8;k++){
+    const a = k * Math.PI/4, x1=Math.sin(a)*40, y1=-Math.cos(a)*40, x2=Math.sin(a)*46, y2=-Math.cos(a)*46;
+    ticks += '<line class="tick" x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'"/>';
+  }
+  let dirs = '';
+  for (let k=0;k<4;k++){
+    const a = k*Math.PI/2, x=Math.sin(a)*31, y=-Math.cos(a)*31+3.2;
+    dirs += '<text class="card" text-anchor="middle" x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'">'+dirLbl[k]+'</text>';
+  }
+  el.innerHTML = '<div class="th">heading compass <span class="map">'
+      + c.n_ring + ' EPG ring &middot; ' + c.regime + '</span></div>'
+    + '<div class="dialwrap"><svg viewBox="-50 -50 100 100" class="dial">'
+    +   '<circle class="rim" cx="0" cy="0" r="46"/>' + ticks + dirs
+    +   '<line class="needle" x1="0" y1="0" x2="0" y2="-40"/><circle class="hub" cx="0" cy="0" r="3.4"/>'
+    + '</svg></div>'
+    + '<div class="cphase"><span class="lbl">&mdash;</span><span class="rbar"><i></i></span></div>'
+    + '<div class="cnote">' + (c.regime === 'memory'
+        ? 'inhibition relaxed &mdash; the bump self-sustains with no input'
+        : 'a heading bump forms, holds, then steers to track the turn') + '</div>';
+  el.style.display = 'block';
+}
+
 function setData(D){
   document.getElementById('empty').style.display = 'none';
   if (D.ghost) buildGhost(D.ghost);
@@ -353,12 +402,14 @@ function setData(D){
   DUR = D.dur_ms; tNow = 0; holdT = 0;
   document.getElementById('cap').textContent = D.math
     ? 'the fly-neuron gates that did the math'
-    : (D.gate ? 'cycling every input combination'
-       : (D.neurons.length ? ('replaying the first ' + DUR + ' ms, on a loop')
-                           : 'the whole brain, at rest'));
+    : (D.compass ? 'cue → hold → turn: the heading bump on a loop'
+       : (D.gate ? 'cycling every input combination'
+          : (D.neurons.length ? ('replaying the first ' + DUR + ' ms, on a loop')
+                              : 'the whole brain, at rest')));
   setEnergy(D.energy);
   setGate(D.gate);
   setMath(D.math);
+  setCompass(D.compass);
 }
 
 function frame(){
@@ -386,9 +437,33 @@ function frame(){
       const rows = document.querySelectorAll('#truth tr[data-r]');
       for (let i=0;i<rows.length;i++) rows[i].classList.toggle('on', i === ph);
     }
+    if (window._compass){ updateCompass(tNow); }
   }
   controls.update();
   renderer.render(scene, camera);
+}
+
+function updateCompass(t){
+  const c = window._compass, el = document.getElementById('compass');
+  if (!c || !el || el.style.display === 'none') return;
+  const tr = c.trace;
+  let s = tr[0];
+  for (let i=0;i<tr.length;i++){ if (tr[i][0] <= t) s = tr[i]; else break; }
+  const deg = s[1], R = Math.min(1, s[2] || 0);
+  const needle = el.querySelector('.needle'), lbl = el.querySelector('.lbl'),
+        bar = el.querySelector('.rbar i');
+  let phase = 'TURN';
+  if (t < c.phases.cue[1]) phase = 'CUE';
+  else if (t < c.phases.hold[1]) phase = 'HOLD';
+  if (needle){
+    if (deg == null){ needle.style.opacity = 0.12; }
+    else {
+      needle.style.opacity = (0.22 + 0.78 * R).toFixed(2);
+      needle.setAttribute('transform', 'rotate(' + deg.toFixed(1) + ')');
+    }
+  }
+  if (lbl) lbl.textContent = phase + (deg == null ? '' : '  ' + Math.round(deg) + '°');
+  if (bar) bar.style.width = Math.round(100 * R) + '%';
 }
 
 // ---------------- chat ----------------
