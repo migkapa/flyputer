@@ -45,6 +45,7 @@
   #energy .er b { color: #7fd1a8; font-variant-numeric: tabular-nums; }
   #energy .er.dim, #energy .er.dim b { color: #6f7ca0; }
   #energy .enote { margin-top: 7px; font-size: 11.5px; color: #ffce7a; }
+  #energy .enote .esub { color: #8893b4; font-size: 10px; display: block; margin-top: 3px; }
   #energy .bar { height: 6px; background: rgba(120,140,190,.14); border-radius: 3px;
     margin: 1px 0 6px; overflow: hidden; }
   #energy .bar i { display: block; height: 100%; width: 0; border-radius: 3px;
@@ -275,13 +276,18 @@ function setEnergy(e){
   const el = document.getElementById('energy');
   if (!e){ el.style.display = 'none'; return; }
   const flyW = Math.max(2, (e.fly_joules / e.chip_joules) * 100);   // chip bar = 100%
+  const util = (e.utilization != null) ? (100 * e.utilization) : null;
+  const utilStr = util == null ? '' : (util < 1 ? util.toFixed(2) : util.toFixed(0)) + '%';
   el.innerHTML = '<div class="eh">energy of this computation</div>'
     + '<div class="er"><span>fly brain</span><b>' + e.fly + '</b></div>'
     + '<div class="bar"><i class="fly"></i></div>'
-    + '<div class="er"><span>a chip</span><b>' + e.chip + '</b></div>'
+    + '<div class="er"><span>a clocked chip</span><b>' + e.chip + '</b></div>'
     + '<div class="bar"><i class="chip"></i></div>'
     + '<div class="er dim"><span>physical floor</span><b>' + e.floor + '</b></div>'
-    + '<div class="enote">~' + Math.round(e.chip_vs_fly) + 'x less than silicon</div>';
+    + '<div class="enote">~' + Math.round(e.chip_vs_fly) + '× less than silicon'
+    + (util == null ? '' : '<br><span class="esub">only ' + utilStr
+        + ' of synapses active — the brain pays for those, not every synapse every tick</span>')
+    + '</div>';
   el.style.display = 'block';
   requestAnimationFrame(function(){
     const f = el.querySelector('.bar i.fly'), ch = el.querySelector('.bar i.chip');

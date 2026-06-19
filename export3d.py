@@ -202,6 +202,7 @@ def build_data(query="olfactory", limit=40, dur_ms=200, heroes=6):
                                   "t": neurons[k]["t"], "pts": pts})
 
     ev = energy.synaptic_events(counts, W)
+    dense = energy.dense_synapse_updates(W, dur_ms, counts)
     return {
         "title": f"Fly brain: '{query}' response",
         "query": query, "dur_ms": dur_ms,
@@ -209,7 +210,7 @@ def build_data(query="olfactory", limit=40, dur_ms=200, heroes=6):
         "n_downstream": sum(1 for n in neurons if n["role"] == "downstream"),
         "top_downstream_types": [t for t, _ in dtypes.most_common(6)],
         "neurons": neurons, "edges": edges, "ghost": _ghost(), "heroes": hero_data,
-        "energy": energy.summary(ev),
+        "energy": energy.summary(ev, dense),
     }
 
 
@@ -271,12 +272,13 @@ def build_gate_scene(gate, phase_ms=200):
 
     labels = {"A": _lab(A), "B": _lab(B), "O": _lab(O)}
     ev = energy.synaptic_events(total, W)
+    dense = energy.dense_synapse_updates(W, phase_ms * 4, total)
     return {
         "title": "Fly-brain logic gate: %s" % gate["kind"],
         "query": gate["kind"], "dur_ms": phase_ms * 4,
         "n_input": 2, "n_downstream": 1, "top_downstream_types": [labels["O"]],
         "neurons": neurons, "edges": [], "ghost": _ghost(), "heroes": heroes,
-        "energy": energy.summary(ev),
+        "energy": energy.summary(ev, dense),
         "gate": {"kind": gate["kind"], "labels": labels, "truth": gate["truth"],
                  "gain": gate.get("gain"), "plateau_width": gate.get("plateau_width"),
                  "robustness": _robustness_label(gate.get("plateau_width")),
@@ -326,6 +328,7 @@ def build_compass_scene(regime="raw"):
 
     ph = res["phases"]
     ev = energy.synaptic_events(counts, res["W"])
+    dense = energy.dense_synapse_updates(res["W"], res["dur_ms"], counts)
     return {
         "title": "Fly compass: heading memory (%s)" % regime,
         "query": "compass", "dur_ms": res["dur_ms"],
@@ -333,7 +336,7 @@ def build_compass_scene(regime="raw"):
         "n_downstream": int(len(neurons) - sum(n["role"] == "input" for n in neurons)),
         "top_downstream_types": ["EPG ring"],
         "neurons": neurons, "edges": [], "ghost": _ghost(), "heroes": [],
-        "energy": energy.summary(ev),
+        "energy": energy.summary(ev, dense),
         "compass": {
             "regime": regime, "dur_ms": res["dur_ms"],
             "phases": {k: [round(float(a), 0), round(float(b), 0)] for k, (a, b) in ph.items()},
@@ -398,6 +401,7 @@ def build_fly_scene(commands, seg_ms=160):
             for (name, beh, g, t0, t1) in spans]
 
     ev = energy.synaptic_events(total, W)
+    dense = energy.dense_synapse_updates(W, seg_ms * len(seq), total)
     return {
         "title": "Fly driven by descending command neurons",
         "query": "fly", "dur_ms": seg_ms * len(seq),
@@ -405,7 +409,7 @@ def build_fly_scene(commands, seg_ms=160):
         "n_downstream": sum(1 for n in neurons if n["role"] == "downstream"),
         "top_downstream_types": [c["dn"] for c in cmds][:6],
         "neurons": neurons, "edges": [], "ghost": _ghost(), "heroes": [],
-        "energy": energy.summary(ev),
+        "energy": energy.summary(ev, dense),
         "fly": {
             "dur_ms": seg_ms * len(seq), "seg_ms": seg_ms, "commands": cmds, "traj": traj,
             "bounds": [min(xs), min(ys), max(xs), max(ys)],
@@ -465,6 +469,7 @@ def build_navigate_scene(start_heading_deg=120.0, steps=64, phases=10):
              "side": "L/R", "gain01": 1.0, "t0": 0.0, "t1": dur}]
 
     ev = energy.synaptic_events(total, W)
+    dense = energy.dense_synapse_updates(W, dur, total)
     return {
         "title": "Fly homing via the real compass→DNa02 steering loop",
         "query": "navigate", "dur_ms": dur,
@@ -472,7 +477,7 @@ def build_navigate_scene(start_heading_deg=120.0, steps=64, phases=10):
         "n_downstream": sum(1 for n in neurons if n["role"] == "downstream"),
         "top_downstream_types": ["DNa02"],
         "neurons": neurons, "edges": [], "ghost": _ghost(), "heroes": [],
-        "energy": energy.summary(ev),
+        "energy": energy.summary(ev, dense),
         "fly": {
             "dur_ms": dur, "seg_ms": seg_ms, "commands": cmds, "traj": traj,
             "bounds": [min(xs), min(ys), max(xs), max(ys)],
@@ -530,7 +535,12 @@ def build_math_scene(x, y, op="add", phase_ms=200):
         "query": "math", "dur_ms": phase_ms,
         "n_input": 0, "n_downstream": 0, "top_downstream_types": [],
         "neurons": neurons, "edges": [], "ghost": _ghost(), "heroes": heroes,
-        "energy": energy.summary(res["events"]),
+        # chip equivalent: each real gate op is its (wA+wB)-synapse circuit, clock-evaluated
+        # for phase_ms; average the gate synapse counts and scale by the number of ops.
+        "energy": energy.summary(
+            res["events"],
+            res["gate_ops"] * energy.dense_synapse_updates(
+                np.full((1, 1), np.mean([g["wA"] + g["wB"] for g in gates.values()])), phase_ms)),
         "math": {"x": x, "y": y, "result": res["result"], "sym": res["sym"],
                  "x_bin": res["x_bin"], "y_bin": res["y_bin"],
                  "result_bin": res["result_bin"], "gate_ops": res["gate_ops"]},
