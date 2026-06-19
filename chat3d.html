@@ -45,6 +45,7 @@
   #energy .er b { color: #7fd1a8; font-variant-numeric: tabular-nums; }
   #energy .er.dim, #energy .er.dim b { color: #6f7ca0; }
   #energy .enote { margin-top: 7px; font-size: 11.5px; color: #ffce7a; }
+  #energy .enote .esub { color: #8893b4; font-size: 10px; display: block; margin-top: 3px; }
   #energy .bar { height: 6px; background: rgba(120,140,190,.14); border-radius: 3px;
     margin: 1px 0 6px; overflow: hidden; }
   #energy .bar i { display: block; height: 100%; width: 0; border-radius: 3px;
@@ -59,6 +60,113 @@
   #truth tr.on { background: rgba(74,222,128,.16); }
   #truth td.out1 { color: #6ef0a0; font-weight: 700; }
   #truth td.out0 { color: #6f7ca0; }
+  #truth .rb { margin-top: 8px; display: flex; align-items: center; gap: 6px;
+    font-size: 11px; text-transform: capitalize; font-weight: 600; }
+  #truth .rb .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  #truth .rb .rbn { margin-left: auto; color: #6f7ca0; font-size: 10.5px;
+    font-weight: 400; text-transform: none; font-variant-numeric: tabular-nums; }
+  #truth .rb.robust { color: #6ef0a0; } #truth .rb.robust .dot { background: #6ef0a0; }
+  #truth .rb.stable { color: #ffce7a; } #truth .rb.stable .dot { background: #ffce7a; }
+  #truth .rb.fragile { color: #ff7a59; } #truth .rb.fragile .dot { background: #ff7a59; }
+  #compass { background: rgba(14,18,30,.74); backdrop-filter: blur(8px);
+    border: 1px solid rgba(120,140,190,.16); border-radius: 12px; padding: 11px 13px;
+    width: 196px; pointer-events: auto; }
+  #compass .th { font-size: 11px; color: #cdd6ee; margin-bottom: 8px; }
+  #compass .th .map { color: #8893b4; font-size: 10.5px; }
+  #compass .dialwrap { display: flex; justify-content: center; }
+  #compass svg.dial { width: 132px; height: 132px; }
+  #compass .rim { fill: rgba(120,140,190,.06); stroke: rgba(120,140,190,.28); stroke-width: 1.2; }
+  #compass .tick { stroke: rgba(120,140,190,.35); stroke-width: 1; }
+  #compass .card { fill: #6f7ca0; font-size: 9px; }
+  #compass .needle { stroke: #6ef0a0; stroke-width: 3; stroke-linecap: round;
+    transition: transform .08s linear; }
+  #compass .hub { fill: #cdd6ee; }
+  #compass .cphase { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  #compass .cphase .lbl { font-size: 11px; font-weight: 700; color: #7fd1a8;
+    font-variant-numeric: tabular-nums; min-width: 78px; }
+  #compass .cphase .rbar { flex: 1; height: 6px; background: rgba(120,140,190,.14);
+    border-radius: 3px; overflow: hidden; }
+  #compass .cphase .rbar i { display: block; height: 100%; width: 0; background: #6ef0a0;
+    border-radius: 3px; transition: width .1s linear; }
+  #compass .cnote { margin-top: 7px; font-size: 10.5px; color: #8893b4; line-height: 1.35; }
+  #arena { background: rgba(14,18,30,.74); backdrop-filter: blur(8px);
+    border: 1px solid rgba(120,140,190,.16); border-radius: 12px; padding: 11px 13px;
+    width: 196px; pointer-events: auto; }
+  #arena .th { font-size: 11px; color: #cdd6ee; margin-bottom: 8px; }
+  #arena .th .map { color: #8893b4; font-size: 10.5px; }
+  #arena svg.field { width: 170px; height: 170px; display: block; margin: 0 auto; }
+  #arena .afield { fill: rgba(120,140,190,.05); stroke: rgba(120,140,190,.22); stroke-width: .8; }
+  #arena .grid { stroke: rgba(120,140,190,.12); stroke-width: .5; }
+  #arena .trail { fill: none; stroke: #7fd1a8; stroke-width: 1.4; opacity: .45; }
+  #arena .body { fill: #6ef0a0; stroke: #0e1220; stroke-width: .6; }
+  #arena .start { fill: #6f7ca0; }
+  #arena .amove { display: flex; align-items: center; gap: 7px; margin-top: 8px; }
+  #arena .amove .lbl { font-size: 11px; font-weight: 700; color: #7fd1a8; }
+  #arena .amove .dn { margin-left: auto; font-size: 10px; color: #6f7ca0;
+    font-variant-numeric: tabular-nums; }
+  #arena .anote { margin-top: 6px; font-size: 10px; color: #8893b4; line-height: 1.35; }
+  #path { background: rgba(14,18,30,.74); backdrop-filter: blur(8px);
+    border: 1px solid rgba(120,140,190,.16); border-radius: 12px; padding: 11px 13px;
+    width: 196px; pointer-events: auto; }
+  #path .th { font-size: 11px; color: #cdd6ee; margin-bottom: 8px; }
+  #path .big { font-size: 22px; font-weight: 700; color: #7fd1a8; font-variant-numeric: tabular-nums;
+    line-height: 1; margin-bottom: 2px; }
+  #path .big span { font-size: 11px; font-weight: 400; color: #8893b4; }
+  #path .chain { margin-top: 9px; }
+  #path .node { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: #cdd6ee;
+    padding: 2px 0; transition: color .15s, opacity .15s; opacity: .5; }
+  #path .node.on { color: #6ef0a0; opacity: 1; }
+  #path .node .dot { width: 7px; height: 7px; border-radius: 50%; flex: none;
+    background: #4a5570; transition: background .15s; }
+  #path .node.on .dot { background: #6ef0a0; box-shadow: 0 0 7px #6ef0a0; }
+  #path .syn { font-size: 9.5px; color: #6f7ca0; margin: 0 0 0 3px; padding-left: 3px;
+    border-left: 1px dashed rgba(120,140,190,.3); }
+  #path .pnote { margin-top: 8px; font-size: 10px; color: #8893b4; line-height: 1.35; }
+  #swatter { background: rgba(14,18,30,.78); backdrop-filter: blur(8px);
+    border: 1px solid rgba(120,140,190,.16); border-radius: 12px; padding: 11px 13px;
+    width: 196px; pointer-events: auto; }
+  #swatter .th { font-size: 11px; color: #cdd6ee; margin-bottom: 6px; display: flex; justify-content: space-between; }
+  #swatter .score { color: #8893b4; font-variant-numeric: tabular-nums; }
+  #swatter .score b.you { color: #6ef0a0; } #swatter .score b.fly { color: #ff7a59; }
+  #swatter svg.ar { width: 170px; height: 92px; display: block; margin: 2px auto 6px; }
+  #swatter .afld { fill: rgba(120,140,190,.05); stroke: rgba(120,140,190,.2); stroke-width: .8; }
+  #swatter .loom { fill: rgba(255,122,89,.18); stroke: #ff7a59; stroke-width: 1.2; }
+  #swatter .flyb { fill: #6ef0a0; stroke: #0e1220; stroke-width: .6; }
+  #swatter .meter { position: relative; height: 13px; border-radius: 7px;
+    background: linear-gradient(90deg, rgba(110,240,160,.30) 0%, rgba(110,240,160,.30) var(--gz,27%), rgba(120,140,190,.12) var(--gz,27%)); overflow: hidden; }
+  #swatter .meter .mk { position: absolute; top: -1px; width: 3px; height: 15px; background: #fff;
+    border-radius: 2px; box-shadow: 0 0 5px #fff; }
+  #swatter .meter .gzl { position: absolute; top: 0; bottom: 0; width: 1px; background: #6ef0a0; left: var(--gz,27%); }
+  #swatter .mrow { display: flex; gap: 6px; align-items: center; margin-top: 7px; }
+  #swatter .mrow .lab { font-size: 8.5px; color: #6f7ca0; }
+  #swatter button.swat { flex: 1; background: #ff7a59; color: #1a0f0a; border: 0; font-weight: 800;
+    border-radius: 8px; padding: 6px 0; cursor: pointer; font-size: 12px; letter-spacing: .04em; }
+  #swatter button.swat:active { transform: translateY(1px); }
+  #swatter .out { margin-top: 7px; font-size: 11px; min-height: 28px; line-height: 1.3; }
+  #swatter .out.win { color: #6ef0a0; } #swatter .out.lose { color: #ff7a59; }
+  #swatter .snote { margin-top: 6px; font-size: 9.5px; color: #8893b4; line-height: 1.3; }
+  #sniff { background: rgba(14,18,30,.74); backdrop-filter: blur(8px);
+    border: 1px solid rgba(120,140,190,.16); border-radius: 12px; padding: 11px 13px;
+    width: 196px; pointer-events: auto; }
+  #sniff .th { font-size: 11px; color: #cdd6ee; margin-bottom: 8px; }
+  #sniff .big { font-size: 22px; font-weight: 700; color: #7fd1a8; font-variant-numeric: tabular-nums;
+    line-height: 1; } #sniff .big span { font-size: 11px; font-weight: 400; color: #8893b4; }
+  #sniff .leg { display: flex; gap: 12px; margin: 8px 0 4px; font-size: 10.5px; }
+  #sniff .leg b { font-weight: 600; } #sniff .leg .a b { color: #ffae5e; } #sniff .leg .b b { color: #6ef0a0; }
+  #sniff .row { display: flex; justify-content: space-between; font-size: 11px; color: #cdd6ee; margin: 3px 0; }
+  #sniff .row b { color: #7fd1a8; font-variant-numeric: tabular-nums; }
+  #sniff .snote { margin-top: 7px; font-size: 10px; color: #8893b4; line-height: 1.35; }
+  #optic { background: rgba(14,18,30,.74); backdrop-filter: blur(8px);
+    border: 1px solid rgba(120,140,190,.16); border-radius: 12px; padding: 11px 13px;
+    width: 196px; pointer-events: auto; }
+  #optic .th { font-size: 11px; color: #cdd6ee; margin-bottom: 8px; }
+  #optic .pair { display: flex; gap: 8px; align-items: center; justify-content: center; }
+  #optic .cell { text-align: center; }
+  #optic .cell .lab { font-size: 9px; color: #8893b4; margin-top: 3px; }
+  #optic svg.grid { width: 78px; height: 78px; background: rgba(0,0,0,.25); border-radius: 4px;
+    border: 1px solid rgba(120,140,190,.12); }
+  #optic .arrow { color: #6f7ca0; font-size: 14px; }
+  #optic .onote { margin-top: 8px; font-size: 10px; color: #8893b4; line-height: 1.35; }
   #math .th { font-size: 10.5px; color: #8893b4; margin-bottom: 5px;
     text-transform: uppercase; letter-spacing: .4px; }
   #math .msum { font-size: 19px; color: #e9eefc; margin: 2px 0 3px;
@@ -106,7 +214,7 @@
         <span><i class="dot" style="color:#5a6a96;background:#5a6a96"></i> full brain</span>
       </div>
     </div>
-    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div></div>
+    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div><div id="compass"></div><div id="arena"></div><div id="path"></div><div id="swatter"></div><div id="sniff"></div><div id="optic"></div></div>
     <div id="empty">the brain will appear here when you ask a question</div>
     <div id="tip"></div>
     <div id="hud">
@@ -123,8 +231,9 @@
     <div id="sugg">
       <button>What happens when the fly smells something?</button>
       <button>Show an AND gate in the brain</button>
+      <button>Trace the path from sugar to motor</button>
+      <button>Let me try to swat the fly</button>
       <button>Add 2 + 3 with the fly brain</button>
-      <button>Stimulate the mushroom body</button>
     </div>
     <form id="form">
       <input id="msg" autocomplete="off" placeholder="ask to show / stimulate a circuit...">
@@ -230,13 +339,18 @@ function setEnergy(e){
   const el = document.getElementById('energy');
   if (!e){ el.style.display = 'none'; return; }
   const flyW = Math.max(2, (e.fly_joules / e.chip_joules) * 100);   // chip bar = 100%
+  const util = (e.utilization != null) ? (100 * e.utilization) : null;
+  const utilStr = util == null ? '' : (util < 1 ? util.toFixed(2) : util.toFixed(0)) + '%';
   el.innerHTML = '<div class="eh">energy of this computation</div>'
     + '<div class="er"><span>fly brain</span><b>' + e.fly + '</b></div>'
     + '<div class="bar"><i class="fly"></i></div>'
-    + '<div class="er"><span>a chip</span><b>' + e.chip + '</b></div>'
+    + '<div class="er"><span>a clocked chip</span><b>' + e.chip + '</b></div>'
     + '<div class="bar"><i class="chip"></i></div>'
     + '<div class="er dim"><span>physical floor</span><b>' + e.floor + '</b></div>'
-    + '<div class="enote">~' + Math.round(e.chip_vs_fly) + 'x less than silicon</div>';
+    + '<div class="enote">~' + Math.round(e.chip_vs_fly) + '× less than silicon'
+    + (util == null ? '' : '<br><span class="esub">only ' + utilStr
+        + ' of synapses active — the brain pays for those, not every synapse every tick</span>')
+    + '</div>';
   el.style.display = 'block';
   requestAnimationFrame(function(){
     const f = el.querySelector('.bar i.fly'), ch = el.querySelector('.bar i.chip');
@@ -268,7 +382,225 @@ function setGate(g){
     const a=g.rows[i][0], b=g.rows[i][1], o=(g.truth[i]>0)?1:0;
     h += '<tr data-r="'+i+'"><td>'+a+'</td><td>'+b+'</td><td class="out'+o+'">'+o+'</td></tr>';
   }
-  el.innerHTML = h + '</table>';
+  h += '</table>';
+  if (g.robustness){
+    const w = (g.plateau_width!=null) ? g.plateau_width.toFixed(2) : '?';
+    const gn = (g.gain!=null) ? g.gain.toFixed(2) : '?';
+    h += '<div class="rb ' + g.robustness + '">'
+      + '<span class="dot"></span>' + g.robustness
+      + '<span class="rbn">gain ' + gn + ' &middot; stable band &plusmn;' + w + '</span></div>';
+  }
+  el.innerHTML = h;
+  el.style.display = 'block';
+}
+
+function setCompass(c){
+  const el = document.getElementById('compass');
+  if (!c){ el.style.display = 'none'; window._compass = null; return; }
+  window._compass = c;
+  let ticks = '';
+  const card = ['','','','']; const dirLbl = ['N','E','S','W'];
+  for (let k=0;k<8;k++){
+    const a = k * Math.PI/4, x1=Math.sin(a)*40, y1=-Math.cos(a)*40, x2=Math.sin(a)*46, y2=-Math.cos(a)*46;
+    ticks += '<line class="tick" x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'"/>';
+  }
+  let dirs = '';
+  for (let k=0;k<4;k++){
+    const a = k*Math.PI/2, x=Math.sin(a)*31, y=-Math.cos(a)*31+3.2;
+    dirs += '<text class="card" text-anchor="middle" x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'">'+dirLbl[k]+'</text>';
+  }
+  el.innerHTML = '<div class="th">heading compass <span class="map">'
+      + c.n_ring + ' EPG ring &middot; ' + c.regime + '</span></div>'
+    + '<div class="dialwrap"><svg viewBox="-50 -50 100 100" class="dial">'
+    +   '<circle class="rim" cx="0" cy="0" r="46"/>' + ticks + dirs
+    +   '<line class="needle" x1="0" y1="0" x2="0" y2="-40"/><circle class="hub" cx="0" cy="0" r="3.4"/>'
+    + '</svg></div>'
+    + '<div class="cphase"><span class="lbl">&mdash;</span><span class="rbar"><i></i></span></div>'
+    + '<div class="cnote">' + (c.regime === 'memory'
+        ? 'inhibition relaxed &mdash; the bump self-sustains with no input'
+        : 'a heading bump forms, holds, then steers to track the turn') + '</div>';
+  el.style.display = 'block';
+}
+
+function setFly(f){
+  const el = document.getElementById('arena');
+  if (!f || !f.traj || !f.traj.length){ el.style.display = 'none'; window._fly = null; return; }
+  const b = f.bounds;                          // [minx,miny,maxx,maxy]
+  const w = Math.max(1e-6, b[2]-b[0]), h = Math.max(1e-6, b[3]-b[1]);
+  const s = 78 / Math.max(w, h);
+  const ox = 50 - s*(b[0]+b[2])/2, oy = 50 + s*(b[1]+b[3])/2;
+  const toX = x => ox + s*x, toY = y => oy - s*y;
+  window._fly = {traj: f.traj, commands: f.commands, toX, toY};
+  let pts = '';
+  for (const p of f.traj) pts += toX(p[1]).toFixed(1)+','+toY(p[2]).toFixed(1)+' ';
+  const s0 = f.traj[0];
+  let grid = '';
+  for (let g=20; g<=80; g+=20){
+    grid += '<line class="grid" x1="'+g+'" y1="8" x2="'+g+'" y2="92"/>'
+          + '<line class="grid" x1="8" y1="'+g+'" x2="92" y2="'+g+'"/>';
+  }
+  el.innerHTML = '<div class="th">virtual fly <span class="map">'
+      + f.commands.length + ' commands &middot; real DNs</span></div>'
+    + '<svg viewBox="0 0 100 100" class="field">'
+    +   '<rect class="afield" x="8" y="8" width="84" height="84" rx="4"/>' + grid
+    +   '<polyline class="trail" points="'+pts+'"/>'
+    +   '<circle class="start" cx="'+toX(s0[1]).toFixed(1)+'" cy="'+toY(s0[2]).toFixed(1)+'" r="1.6"/>'
+    +   '<path class="body" d="M 6,0 L -4,-3.4 L -4,3.4 Z"/>'
+    + '</svg>'
+    + '<div class="amove"><span class="lbl">&mdash;</span><span class="dn"></span></div>'
+    + '<div class="anote">brain fires the real command neuron; the body stands in for the VNC</div>';
+  el.style.display = 'block';
+}
+
+function updateFly(t){
+  const f = window._fly, el = document.getElementById('arena');
+  if (!f || !el || el.style.display === 'none') return;
+  const tr = f.traj;
+  let p = tr[0];
+  for (let i=0;i<tr.length;i++){ if (tr[i][0] <= t) p = tr[i]; else break; }
+  const body = el.querySelector('.body');
+  if (body) body.setAttribute('transform',
+    'translate('+f.toX(p[1]).toFixed(1)+','+f.toY(p[2]).toFixed(1)+') rotate('+(-p[3]).toFixed(1)+')');
+  let cur = null;
+  for (const c of f.commands){ if (t >= c.t0 && t < c.t1){ cur = c; break; } }
+  if (!cur) cur = f.commands[f.commands.length-1];
+  const lbl = el.querySelector('.amove .lbl'), dn = el.querySelector('.amove .dn');
+  if (cur && lbl){ lbl.textContent = cur.label; dn.textContent = cur.dn + (cur.side ? ' ('+cur.side+')' : ''); }
+}
+
+function setPath(p){
+  const el = document.getElementById('path');
+  if (!p || !p.found){ el.style.display = 'none'; window._path = null; return; }
+  window._path = p;
+  let chain = '';
+  for (let i=0;i<p.hops.length;i++){
+    chain += '<div class="node" data-h="'+i+'"><span class="dot"></span>' + p.hops[i] + '</div>';
+    if (i < p.hop_synapses.length)
+      chain += '<div class="syn">' + p.hop_synapses[i] + ' synapses ↓</div>';
+  }
+  el.innerHTML = '<div class="th">six degrees of the fly brain</div>'
+    + '<div class="big">' + p.n_synapses + ' <span>synapse' + (p.n_synapses==1?'':'s') + ' apart</span></div>'
+    + '<div class="th" style="color:#8893b4">' + p.start + ' → ' + p.end + '</div>'
+    + '<div class="chain">' + chain + '</div>'
+    + '<div class="pnote">a shortest wiring path (≥' + p.min_syn + ' synapses/edge) — connectivity, not signal timing</div>';
+  el.style.display = 'block';
+}
+
+function updatePath(t){
+  const p = window._path, el = document.getElementById('path');
+  if (!p || !el || el.style.display === 'none') return;
+  const reached = Math.min(p.hops.length - 1, Math.floor(t / p.hop_ms));
+  const nodes = el.querySelectorAll('.node');
+  for (let i=0;i<nodes.length;i++) nodes[i].classList.toggle('on', i <= reached);
+}
+
+function setSwatter(sw){
+  const el = document.getElementById('swatter');
+  if (!sw || !sw.curve || !sw.curve.length){ el.style.display = 'none'; window._swatter = null; return; }
+  const speeds = sw.curve.map(c => c.swing_ms);
+  const lo = Math.min(...speeds), hi = Math.max(...speeds);
+  const thr = sw.threshold_ms || hi;
+  const gz = Math.max(6, Math.min(94, 100 * (thr - lo) / (hi - lo)));   // green (win) zone width %
+  el.style.setProperty('--gz', gz.toFixed(0) + '%');
+  el.innerHTML =
+    '<div class="th"><span>dodge the swatter</span><span class="score">you <b class="you">0</b> · fly <b class="fly">0</b></span></div>'
+    + '<svg viewBox="0 0 100 54" class="ar"><rect class="afld" x="2" y="2" width="96" height="50" rx="4"/>'
+    +   '<circle class="loom" cx="50" cy="27" r="0"/><path class="flyb" d="M50,27 m-3,0 l6,-3 l0,6 z"/></svg>'
+    + '<div class="meter"><span class="gzl"></span><span class="mk" style="left:0%"></span></div>'
+    + '<div class="mrow"><span class="lab">fast</span>'
+    +   '<button class="swat">SWAT</button><span class="lab">slow</span></div>'
+    + '<div class="out">stop the marker in the <b style="color:#6ef0a0">green</b> — swing faster than the fly can react.</div>'
+    + '<div class="snote">the real Giant Fiber escapes any swing slower than its reaction limit (~' + thr + ' units). order of events only, not a calibrated latency.</div>';
+  el.style.display = 'block';
+  window._swatter = {
+    curve: sw.curve, lo, hi, thr, value: 0, dir: 1, frozen: false,
+    score: { you: 0, fly: 0 },
+    mk: el.querySelector('.mk'), loom: el.querySelector('.loom'), flyb: el.querySelector('.flyb'),
+    out: el.querySelector('.out'), youB: el.querySelector('b.you'), flyB: el.querySelector('b.fly'),
+  };
+  el.querySelector('button.swat').onclick = swatNow;
+}
+
+function tickSwatter(){
+  const s = window._swatter;
+  if (!s || s.frozen) return;
+  s.value += s.dir * 0.022;                 // sweep speed
+  if (s.value >= 1){ s.value = 1; s.dir = -1; }
+  else if (s.value <= 0){ s.value = 0; s.dir = 1; }
+  s.mk.style.left = (s.value * 100).toFixed(1) + '%';
+}
+
+function swatNow(){
+  const s = window._swatter;
+  if (!s || s.frozen) return;
+  s.frozen = true;
+  const swing = Math.round(s.lo + s.value * (s.hi - s.lo));
+  let best = s.curve[0];
+  for (const c of s.curve) if (Math.abs(c.swing_ms - swing) < Math.abs(best.swing_ms - swing)) best = c;
+  const escaped = best.escaped;
+  // animate loom disc growing toward the fly
+  let r = 0; const grow = setInterval(() => {
+    r += 2.2; s.loom.setAttribute('r', r.toFixed(1));
+    if (r >= 26){ clearInterval(grow);
+      if (escaped){ s.flyb.style.transition='transform .18s'; s.flyb.style.transform='translate(22px,-12px)'; s.flyb.style.opacity=.2; }
+    }
+  }, 14);
+  if (escaped){
+    s.score.fly++; s.out.className = 'out lose';
+    s.out.innerHTML = 'SWAT at <b>' + swing + '</b> — too slow. The Giant Fiber fired at <b>'
+      + Math.round((best.gf_frac||0.9)*100) + '%</b> of your swing and the fly was gone. <b>It escaped.</b>';
+  } else {
+    s.score.you++; s.out.className = 'out win';
+    s.out.innerHTML = 'SWAT at <b>' + swing + '</b> — faster than the circuit could react. The Giant Fiber never fired. <b>Got it! 🪰</b>';
+  }
+  s.youB.textContent = s.score.you; s.flyB.textContent = s.score.fly;
+  setTimeout(() => {                         // reset for the next round
+    s.loom.setAttribute('r', '0');
+    s.flyb.style.transition=''; s.flyb.style.transform=''; s.flyb.style.opacity='1';
+    s.frozen = false;
+  }, 1400);
+}
+
+function setSniff(sn){
+  const el = document.getElementById('sniff');
+  if (!sn){ el.style.display = 'none'; return; }
+  el.innerHTML = '<div class="th">two smells, two memories</div>'
+    + '<div class="big">' + (100*sn.overlap).toFixed(1) + '% <span>code overlap</span></div>'
+    + '<div class="leg"><span class="a">odor <b>A</b></span><span class="b">odor <b>B</b></span></div>'
+    + '<div class="row"><span>A active</span><b>' + (100*sn.kc_active_A).toFixed(1) + '%</b></div>'
+    + '<div class="row"><span>B active</span><b>' + (100*sn.kc_active_B).toFixed(1) + '%</b></div>'
+    + '<div class="row"><span>shared cells</span><b>' + sn.shared_kc + ' of ' + sn.n_kc + '</b></div>'
+    + '<div class="row"><span>false memory*</span><b>' + Math.round(100*sn.false_memory) + '%</b></div>'
+    + '<div class="snote">each smell lights up its own near-private sliver of Kenyon cells, so a '
+    + 'new memory barely touches an old one — how the fly sidesteps catastrophic forgetting. '
+    + '*after teaching ' + sn.n_taught + ' odors. mechanism, not a benchmark.</div>';
+  el.style.display = 'block';
+}
+
+function _gridSVG(img){
+  const n = img.length, cell = 100 / n;
+  let r = '';
+  for (let y=0;y<n;y++) for (let x=0;x<n;x++){
+    const v = img[y][x];
+    if (v > 0.04) r += '<rect x="'+(x*cell).toFixed(2)+'" y="'+(y*cell).toFixed(2)+'" width="'
+      +(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#6ef0a0" opacity="'
+      +Math.min(1,0.15+v).toFixed(2)+'"/>';
+  }
+  return '<svg viewBox="0 0 100 100" class="grid">'+r+'</svg>';
+}
+
+function setOptic(o){
+  const el = document.getElementById('optic');
+  if (!o || !o.input){ el.style.display = 'none'; return; }
+  el.innerHTML = '<div class="th">the fly’s eye: ' + o.pattern + '</div>'
+    + '<div class="pair">'
+    +   '<div class="cell">' + _gridSVG(o.input) + '<div class="lab">lamina (in)</div></div>'
+    +   '<span class="arrow">→</span>'
+    +   '<div class="cell">' + _gridSVG(o.medulla) + '<div class="lab">medulla</div></div>'
+    + '</div>'
+    + '<div class="onote">the picture travels ' + o.n_l1 + ' lamina columns → '
+    + o.n_mi + ' medulla cells along ' + o.n_syn.toLocaleString() + ' real synapses. a ~750-column '
+    + 'brain’s-eye view — not a camera, no optics/motion modelled.</div>';
   el.style.display = 'block';
 }
 
@@ -325,10 +657,12 @@ function setData(D){
     }
     const lg = new THREE.BufferGeometry();
     lg.setAttribute('position', new THREE.BufferAttribute(ep,3));
+    const isPath = !!(D.path && D.path.found);
     lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({
-      color: 0x33aa66, transparent: true, opacity: 0.05, depthTest: false,
+      color: isPath ? 0x6ef0a0 : 0x33aa66, transparent: true,
+      opacity: isPath ? 0.85 : 0.05, depthTest: false,
       blending: THREE.AdditiveBlending }));
-    lines.visible = document.getElementById('edges').checked; scene.add(lines);
+    lines.visible = isPath || document.getElementById('edges').checked; scene.add(lines);
   }
   for (const H of heroes){ scene.remove(H.points); H.points.geometry.dispose(); H.points.material.dispose(); }
   heroes = [];
@@ -337,12 +671,25 @@ function setData(D){
   DUR = D.dur_ms; tNow = 0; holdT = 0;
   document.getElementById('cap').textContent = D.math
     ? 'the fly-neuron gates that did the math'
-    : (D.gate ? 'cycling every input combination'
-       : (D.neurons.length ? ('replaying the first ' + DUR + ' ms, on a loop')
-                           : 'the whole brain, at rest'));
+    : (D.optic ? 'a picture travels lamina → medulla on real wiring'
+       : (D.sniff ? 'odor A lights up, then odor B — different cells'
+       : (D.swatter ? 'looming detectors converge on the Giant Fiber'
+       : (D.path ? 'signal travels hop-by-hop along the wiring'
+       : (D.fly ? 'exciting descending neurons → the body moves'
+          : (D.compass ? 'cue → hold → turn: the heading bump on a loop'
+             : (D.gate ? 'cycling every input combination'
+                : (D.neurons.length ? ('replaying the first ' + DUR + ' ms, on a loop')
+                                    : 'the whole brain, at rest'))))))));
   setEnergy(D.energy);
   setGate(D.gate);
   setMath(D.math);
+  setCompass(D.compass);
+  setFly(D.fly);
+  setPath(D.path);
+  setSwatter(D.swatter);
+  setSniff(D.sniff);
+  setOptic(D.optic);
+  if (D.path && D.path.found && lines) lines.visible = true;   // the chain IS the point
 }
 
 function frame(){
@@ -370,9 +717,36 @@ function frame(){
       const rows = document.querySelectorAll('#truth tr[data-r]');
       for (let i=0;i<rows.length;i++) rows[i].classList.toggle('on', i === ph);
     }
+    if (window._compass){ updateCompass(tNow); }
+    if (window._fly){ updateFly(tNow); }
+    if (window._path){ updatePath(tNow); }
   }
+  if (window._swatter){ tickSwatter(); }
   controls.update();
   renderer.render(scene, camera);
+}
+
+function updateCompass(t){
+  const c = window._compass, el = document.getElementById('compass');
+  if (!c || !el || el.style.display === 'none') return;
+  const tr = c.trace;
+  let s = tr[0];
+  for (let i=0;i<tr.length;i++){ if (tr[i][0] <= t) s = tr[i]; else break; }
+  const deg = s[1], R = Math.min(1, s[2] || 0);
+  const needle = el.querySelector('.needle'), lbl = el.querySelector('.lbl'),
+        bar = el.querySelector('.rbar i');
+  let phase = 'TURN';
+  if (t < c.phases.cue[1]) phase = 'CUE';
+  else if (t < c.phases.hold[1]) phase = 'HOLD';
+  if (needle){
+    if (deg == null){ needle.style.opacity = 0.12; }
+    else {
+      needle.style.opacity = (0.22 + 0.78 * R).toFixed(2);
+      needle.setAttribute('transform', 'rotate(' + deg.toFixed(1) + ')');
+    }
+  }
+  if (lbl) lbl.textContent = phase + (deg == null ? '' : '  ' + Math.round(deg) + '°');
+  if (bar) bar.style.width = Math.round(100 * R) + '%';
 }
 
 // ---------------- chat ----------------

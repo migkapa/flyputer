@@ -32,6 +32,13 @@ Act by emitting exactly ONE JSON object per turn, nothing else:
   {"tool": "show3d", "args": {"query": "olfactory", "seeds": 40, "dur_ms": 200}}
   {"tool": "show_logic_gate", "args": {"kind": "AND"}}
   {"tool": "do_math", "args": {"a": 6, "b": 7, "op": "mul"}}
+  {"tool": "show_compass", "args": {"regime": "raw"}}
+  {"tool": "move_fly", "args": {"moves": ["forward", "left", "forward", "escape"]}}
+  {"tool": "navigate_fly", "args": {"start_heading": 120}}
+  {"tool": "show_path", "args": {"start": "sugar", "end": "motor"}}
+  {"tool": "dodge_swatter", "args": {}}
+  {"tool": "two_smells", "args": {}}
+  {"tool": "show_eye", "args": {"pattern": "heart"}}
   {"tool": "find_neurons", "args": {"query": "mushroom body"}}
   {"final": "your short, friendly plain-English answer"}
 
@@ -45,6 +52,46 @@ Tools:
 - do_math(a, b, op): do arithmetic with real fly-neuron gates wired into an adder/multiplier.
   op is "add" or "mul". Keep a, b small (0-12). Shows the gate neurons in 3D, the binary
   working, and the energy it cost. Use when the user asks to add, multiply, or compute numbers.
+- show_compass(regime): demonstrate the central-complex COMPASS — real EPG ring neurons
+  that hold a heading like a memory. Shows a bump of activity form, then steer to track a
+  90-degree turn, in 3D with a live heading dial. regime is "raw" (sharp bump that forms
+  and steers) or "memory" (relaxed inhibition so the bump self-sustains with no input). Use
+  when the user asks about the compass, heading, navigation, memory, working memory, ring
+  attractor, the central complex, or "remembering" / state.
+- move_fly(moves): drive a virtual fly by EXCITING REAL DESCENDING COMMAND NEURONS. `moves`
+  is a list of behaviors from: "forward" (DNp09), "backward"/"moonwalk" (MDN), "left"/"right"
+  (DNa02 steering), "escape"/"jump" (the Giant Fiber DNp01). The brain lights up the real
+  command neurons and a virtual fly body walks/turns/lunges accordingly. Use when the user
+  asks to move/walk/turn/steer the fly, make it jump or escape, or drive behavior. The VNC +
+  muscles aren't in this dataset, so the body is a stand-in driven by the real brain commands.
+- navigate_fly(start_heading): CLOSED LOOP. Release the fly at start_heading (degrees) and
+  the real compass->PFL3->DNa02 steering circuit turns it onto the circuit's intrinsic
+  preferred heading while it walks — it homes and then holds a straight course. Use when the
+  user asks the fly to navigate, home, hold a course, steer itself, find its heading, or
+  asks about closed-loop / the compass driving behavior.
+- show_path(start, end): "six degrees of the fly brain" — trace ONE shortest WIRING path
+  between two regions/cell-types and light it up hop-by-hop in 3D (e.g. sugar->motor,
+  smell->escape, eye->wing, clock->everything). It is pure connectivity (how many synapses
+  apart two neurons are), NOT firing/timing — say "A shortest path", never "the" path, and
+  never claim signal timing. Use when the user asks how two things connect, how far apart
+  neurons are, what links X to Y, or to trace/route a signal across the brain.
+- dodge_swatter(): launch the PLAYABLE escape game — the user swats and the fly's REAL
+  looming circuit (LPLC2+LC4 detectors -> the Giant Fiber DNp01) decides if it jumps in time.
+  Shows the convergence funnel firing in 3D + an interactive swatter game (swing faster than
+  the fly's reaction limit to win). Use when the user wants to swat/hit the fly, play a game,
+  test the escape reflex, or asks about looming/the Giant Fiber/jumping/escape.
+- two_smells(): show how the fly stores two odor memories without interfering. Two smells
+  light up two near-disjoint sparse sets of Kenyon cells (mushroom body), so a new memory
+  barely touches an old one — the architectural trick behind the fly NOT suffering the
+  catastrophic forgetting that plagues dense neural nets. Use when the user asks about smell
+  memory, learning, the mushroom body, Kenyon cells, sparse coding, or forgetting. (Mechanism
+  demo, not a benchmark — be honest that a dense net on random odors can separate them too.)
+- show_eye(pattern): relay a picture through the fly's REAL optic lobe — paint it on the L1
+  lamina (~789 columns), send it along ~66k real L1->Mi1 synapses, and watch it reappear in
+  the medulla. pattern is "heart", "smiley", "f", "gradient", or "checker". Shows the lit
+  cells in 3D + the input vs medulla images. Use when the user asks about vision, the eye,
+  seeing an image, the optic lobe, lamina/medulla, or "show X on the fly's eye". (Honest: a
+  ~750-column retinotopic sensor / brain's-eye view, NOT a camera; no real optics or motion.)
 - find_neurons(query): look up neurons by name/region.
 
 Every scene comes back with an energy ledger comparing the fly brain to a computer chip.
@@ -94,10 +141,98 @@ def run_agent(message, max_steps=8):
                 "binary": "%s %s %s = %s" % (m["x_bin"], m["sym"], m["y_bin"], m["result_bin"]),
                 "gate_ops": m["gate_ops"], "energy": data["energy"]["headline"]}
 
+    def show_compass(regime="raw"):
+        r = str(regime).lower().strip()
+        if r not in ("raw", "memory"):
+            r = "raw"
+        data = export3d.build_compass_scene(r)
+        viz["data"] = data
+        cm = data["compass"]
+        return {"shown_in_3d": True, "scene": "compass", "regime": r,
+                "ring_neurons": cm["n_ring"],
+                "cued_heading_deg": cm["theta0_deg"], "turned_to_deg": cm["turn_to_deg"],
+                "energy": data["energy"]["headline"]}
+
+    def move_fly(moves=None):
+        if isinstance(moves, str):
+            moves = moves.replace(",", " ").split()
+        if not moves:
+            moves = ["forward", "left", "forward", "escape"]
+        data = export3d.build_fly_scene([str(m) for m in moves])
+        viz["data"] = data
+        f = data["fly"]
+        end = f["traj"][-1] if f["traj"] else [0, 0, 0, 0]
+        return {"shown_in_3d": True, "scene": "fly",
+                "moves": [c["label"] for c in f["commands"]],
+                "command_neurons": [c["dn"] for c in f["commands"]],
+                "ended_at": {"x": end[1], "y": end[2], "heading_deg": end[3]},
+                "energy": data["energy"]["headline"]}
+
+    def navigate_fly(start_heading=120):
+        try:
+            h = float(start_heading)
+        except Exception:
+            h = 120.0
+        data = export3d.build_navigate_scene(h)
+        viz["data"] = data
+        f = data["fly"]
+        return {"shown_in_3d": True, "scene": "navigate",
+                "released_at_deg": f["start_deg"], "homed_to_deg": f["goal_deg"],
+                "final_error_deg": f["final_err_deg"], "energy": data["energy"]["headline"]}
+
+    def show_path(start="sugar", end="motor"):
+        data = export3d.build_path_scene(str(start), str(end))
+        viz["data"] = data
+        p = data["path"]
+        if not p.get("found"):
+            return {"error": "no path %s -> %s: %s" % (start, end, p.get("reason", ""))}
+        return {"shown_in_3d": True, "scene": "path", "start": start, "end": end,
+                "n_synapses": p["n_synapses"], "chain": " -> ".join(p["hops"]),
+                "note": "a shortest wiring path (topology, not signal timing)"}
+
+    def dodge_swatter():
+        data = export3d.build_swatter_scene()
+        viz["data"] = data
+        sw = data["swatter"]
+        return {"shown_in_3d": True, "scene": "swatter", "playable": True,
+                "detectors": sw["n_detectors"], "giant_fiber": sw["n_gf"],
+                "reaction_threshold_ms": sw["threshold_ms"],
+                "note": "swing FASTER than the fly's ~%s-unit reaction limit to land it; "
+                        "slower and the real Giant Fiber escape circuit jumps first" % sw["threshold_ms"],
+                "energy": data["energy"]["headline"]}
+
     tools = dict(flysim.TOOLS)
     tools["show3d"] = show3d
     tools["show_logic_gate"] = show_logic_gate
     tools["do_math"] = do_math
+    tools["show_compass"] = show_compass
+    tools["move_fly"] = move_fly
+    tools["navigate_fly"] = navigate_fly
+    def two_smells():
+        data = export3d.build_sniff_scene()
+        viz["data"] = data
+        sn = data["sniff"]
+        return {"shown_in_3d": True, "scene": "sniff",
+                "kc_overlap_pct": round(100 * sn["overlap"], 1), "shared_cells": sn["shared_kc"],
+                "false_memory_pct": round(100 * sn["false_memory"]),
+                "note": "two odors use near-disjoint sparse Kenyon-cell codes (%.1f%% overlap), "
+                        "so new memories barely touch old ones — a mechanism, not a benchmark"
+                        % (100 * sn["overlap"])}
+
+    tools["show_path"] = show_path
+    def show_eye(pattern="heart"):
+        p = str(pattern).lower().strip()
+        data = export3d.build_optic_scene(p if p in ("heart", "smiley", "f", "gradient", "checker") else "heart")
+        viz["data"] = data
+        o = data["optic"]
+        return {"shown_in_3d": True, "scene": "optic", "pattern": o["pattern"],
+                "lamina_columns": o["n_l1"], "medulla_cells": o["n_mi"], "relay_synapses": o["n_syn"],
+                "note": "an image relayed through the real L1->Mi1 retinotopic wiring; a "
+                        "~750-column brain's-eye view, not a camera"}
+
+    tools["dodge_swatter"] = dodge_swatter
+    tools["two_smells"] = two_smells
+    tools["show_eye"] = show_eye
     msgs = [{"role": "system", "content": SYSTEM},
             {"role": "user", "content": message}]
     for _ in range(max_steps):
@@ -190,6 +325,25 @@ def serve(open_browser=True):
         try:
             import flymath
             flymath._gates()
+        except Exception:
+            pass
+        try:
+            flysim._ensure_adj()          # routing adjacency, so first show_path is instant
+        except Exception:
+            pass
+        try:
+            import swatter
+            swatter.circuit()             # warm the looming/escape subcircuit
+        except Exception:
+            pass
+        try:
+            import sniff
+            sniff.circuit()               # warm the olfactory-learning slice
+        except Exception:
+            pass
+        try:
+            import optic
+            optic.optic()                 # warm the retinotopic relay
         except Exception:
             pass
     threading.Thread(target=_warm, daemon=True).start()

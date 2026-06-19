@@ -287,6 +287,86 @@ def stimulate(drive_ids, dur_ms: float = 200, hops: int = 2):
     }
 
 
+# --------------------------------------------------------------------------- #
+# shortest path — "six degrees of the fly brain" (pure connectome topology)
+# --------------------------------------------------------------------------- #
+_ADJ = None          # forward adjacency dict: pre_root_id -> np.array(post_root_ids)
+_ADJ_MIN = None      # the min_syn threshold _ADJ was built at
+
+
+def _ensure_adj(min_syn=5):
+    """Build (once) a strong-synapse forward adjacency for breadth-first routing. This is a
+    pure WIRING graph — no dynamics, no firing rates — so any path it returns is a structural
+    'A connects to B in N synapses' fact, not a temporal/causal claim."""
+    global _ADJ, _ADJ_MIN
+    if _ADJ is not None and _ADJ_MIN == min_syn:
+        return
+    _ensure_conn()
+    strong = CONN[CONN.w >= min_syn]
+    _ADJ = {int(p): np.asarray(v, dtype="int64")
+            for p, v in strong.groupby("pre")["post"].apply(lambda s: s.values).items()}
+    _ADJ_MIN = min_syn
+
+
+def shortest_path(src_ids, dst_ids, min_syn=5, max_visited=2_000_000):
+    """One shortest directed path (fewest synaptic hops) from any src to any dst, over edges
+    with >= min_syn synapses. Returns a list of root_ids [src..dst], or None if unreachable."""
+    from collections import deque
+    _ensure_adj(min_syn)
+    src = {int(s) for s in src_ids}
+    dst = {int(d) for d in dst_ids}
+    hit = src & dst
+    if hit:
+        return [next(iter(hit))]
+    prev = {s: None for s in src}
+    q = deque(src)
+    visited = 0
+    while q and visited < max_visited:
+        n = q.popleft()
+        for m in _ADJ.get(n, ()):           # numpy array iter
+            mi = int(m)
+            if mi in prev:
+                continue
+            prev[mi] = n
+            if mi in dst:
+                path = [mi]
+                while prev[path[-1]] is not None:
+                    path.append(prev[path[-1]])
+                return path[::-1]
+            q.append(mi)
+        visited += 1
+    return None
+
+
+def _pair_syn(a, b):
+    """Synapse count on the a->b edge (for labelling a path hop)."""
+    e = CONN[(CONN.pre == int(a)) & (CONN.post == int(b))]
+    return int(e.w.sum()) if len(e) else 0
+
+
+def find_path(start, end, min_syn=5, limit=40):
+    """Resolve two region/cell-type queries to neurons and return ONE shortest wiring path
+    between them, with per-hop labels and synapse counts. Topology only — no firing claims."""
+    _ensure_ann()
+    s = find_neurons(start, limit=limit)
+    e = find_neurons(end, limit=limit)
+    if not s["neurons"] or not e["neurons"]:
+        return {"start": start, "end": end, "found": False,
+                "reason": "no neurons matched " + (start if not s["neurons"] else end),
+                "suggestions": _SUGGESTIONS}
+    src = [n["root_id"] for n in s["neurons"]]
+    dst = [n["root_id"] for n in e["neurons"]]
+    path = shortest_path(src, dst, min_syn=min_syn)
+    if not path:
+        return {"start": start, "end": end, "found": False,
+                "reason": f"no path at min_syn>={min_syn} (try a lower threshold)"}
+    hops = [{"root_id": int(r), "label": LABEL.get(int(r), "?")} for r in path]
+    syns = [_pair_syn(path[i], path[i + 1]) for i in range(len(path) - 1)]
+    return {"start": start, "end": end, "found": True,
+            "min_syn": min_syn, "n_synapses": len(path) - 1,
+            "path": [int(r) for r in path], "hops": hops, "hop_synapses": syns}
+
+
 def neuroglancer(ids):
     """Return a FlyWire Neuroglancer 3D-viewer URL for these neurons (use Chrome)."""
     ids = [str(int(i)) for i in ids][:50]
