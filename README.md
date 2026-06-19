@@ -68,6 +68,12 @@ Things to ask — each lights up the real connectome and comes back with an ener
 - **"Let me try to swat the fly"** — a **playable game**: a looming swatter drives the real
   LPLC2+LC4 detectors converging onto the Giant Fiber; swing faster than the circuit's
   reaction limit to land it, slower and the real escape reflex jumps first. (`swatter.py`)
+- **"How does the fly remember two smells without forgetting?"** — two odors light up two
+  near-disjoint sparse sets of Kenyon cells (~0.6% each, ~2% overlap), so a new memory barely
+  touches an old one — the architecture behind not suffering catastrophic forgetting. (`sniff.py`)
+- **"Show a heart on the fly's eye"** — paint a picture onto the ~789 L1 lamina columns and
+  it travels along ~66k real L1→Mi1 synapses into the medulla: a recognizable image glowing
+  on the real optic lobe (a ~750-column brain's-eye view, not a camera). (`optic.py`)
 
 ## Or use the pieces directly
 
@@ -84,6 +90,8 @@ Things to ask — each lights up the real connectome and comes back with an ener
 .venv/bin/python compass.py      # CUE → HOLD → TURN: heading-memory regime comparison
 .venv/bin/python fly.py forward left forward escape   # ASCII trajectory from real DNs
 .venv/bin/python swatter.py      # sweep swing speeds: who wins vs the escape circuit, and why
+.venv/bin/python sniff.py        # two odors -> near-disjoint sparse Kenyon-cell codes
+.venv/bin/python optic.py heart  # relay an image through the real optic lobe (ASCII in/out)
 
 # find_neurons understands region names: sugar, gustatory, "mushroom body",
 # "central complex", clock, olfactory, descending, motor, Kenyon, MBON.
@@ -110,6 +118,8 @@ Validate the claims (precision, control circuits, gate robustness, arithmetic):
 - **`fly.py`** — descending-neuron → behavior mapping, body kinematics, and the closed-loop
   compass→DNa02 steering controller.
 - **`swatter.py`** — the looming-escape circuit (LPLC2/LC4 → Giant Fiber) and the swat game.
+- **`sniff.py`** — the mushroom-body olfactory-learning slice and sparse-coding analysis.
+- **`optic.py`** — the retinotopic lamina→medulla (L1→Mi1) image relay.
 - **`energy.py`** — the energy ledger (see below). **`export3d.py`** builds the 3D scenes;
   **`server.py`** is the web app; **`agent.py`** is the version-agnostic JSON tool-calling
   loop around Gemma. **`eval.py`** is the validation harness.
@@ -142,6 +152,13 @@ clocked MAC (Horowitz); the chip clock is priced at a physical 1 kHz, not the si
   lunge) and which swing speeds escape — **not** calibrated millisecond latencies.
 - The compass forms and steers a sharp bump faithfully; a *self-sustained* held heading needs
   finer excitation/inhibition tuning than this toy provides.
+- **Two smells** demonstrates the *mechanism* (sparse, near-disjoint Kenyon-cell codes), not a
+  rigged benchmark — a dense net on random odors can separate them too; the point is *how* the
+  fly does it. The Kenyon code is a tuned coincidence threshold, not a calibrated firing rate.
+- **The fly's eye** is a ~750-column retinotopic sensor / brain's-eye view, **not** a camera:
+  no ommatidial optics, no T4/T5 motion detection, uncalibrated rates. The medulla is read out
+  at each cell's lamina column (a full undistorted 2D reconstruction needs de-warping the
+  curved hex lattice, which a plain PCA flatten can't do — verified retinotopic only in 1D).
 - Root IDs are pinned to FlyWire materialization **v783** (the Oct 2024 *Nature* release).
 
 ## License / attribution
