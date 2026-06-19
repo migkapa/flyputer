@@ -55,17 +55,25 @@ def resolve(name):
     return ALIASES.get(n, n)
 
 
+_PILOT = None
+
+
 def pilot_setup():
     """Per-behavior data for the interactive 'fly the fly' game: the real command DN ids
-    (verified to fire when driven) + the motor primitive. Computed once; the browser then
-    runs the game loop client-side from these primitives (no live LIF per keypress)."""
+    (verified to fire when driven) + the motor primitive. Computed once and CACHED (each
+    behavior runs a LIF, so this is ~1.7s cold); the browser then runs the game loop
+    client-side from these primitives (no live LIF per keypress)."""
+    global _PILOT
+    if _PILOT is not None:
+        return _PILOT
     out = {}
     for name, beh in BEHAVIORS.items():
         cmd = step_behavior(name)                     # excites the real DN, confirms it fires
         out[name] = {"dn": beh["dn"], "side": beh["side"], "dn_ids": cmd["dn_ids"] if cmd else [],
                      "fires": bool(cmd and cmd["dn_spikes"] > 0),
                      "v": beh["v"], "w": beh["w"], "label": beh["label"]}
-    return out
+    _PILOT = out
+    return _PILOT
 
 
 def dn_ids(cell_type, side=None):

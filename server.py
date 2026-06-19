@@ -284,6 +284,32 @@ def run_agent(message, max_steps=8):
             "'sugar', or 'mushroom body'.", None)
 
 
+# Direct-load demos — a deterministic scene per name, no LLM in the loop. The nav bar in the
+# UI calls /demo?name=... so canonical demos always land exactly right (vs. hoping Gemma picks
+# the matching tool). Keep names in sync with the front-end DEMOS list in chat3d.html.
+def build_demo(name):
+    import logic
+    n = str(name).lower().strip()
+    builders = {
+        "smell": lambda: export3d.build_data("olfactory", 40, 200),
+        "and": lambda: export3d.build_gate_scene(logic.find_gate("AND")),
+        "or": lambda: export3d.build_gate_scene(logic.find_gate("OR")),
+        "andnot": lambda: export3d.build_gate_scene(logic.find_gate("AND-NOT")),
+        "math": lambda: export3d.build_math_scene(2, 3, "add"),
+        "compass": lambda: export3d.build_compass_scene("raw"),
+        "memory": lambda: export3d.build_compass_scene("memory"),
+        "move": lambda: export3d.build_fly_scene(["forward", "left", "forward", "escape"]),
+        "navigate": lambda: export3d.build_navigate_scene(120),
+        "path": lambda: export3d.build_path_scene("sugar", "motor"),
+        "swatter": lambda: export3d.build_swatter_scene(),
+        "smells": lambda: export3d.build_sniff_scene(),
+        "eye": lambda: export3d.build_optic_scene("heart"),
+        "pilot": lambda: export3d.build_pilot_scene(),
+    }
+    fn = builders.get(n)
+    return fn() if fn else None
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, code, body, ctype="application/json"):
         b = body.encode() if isinstance(body, str) else body
@@ -303,6 +329,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, html, "text/html; charset=utf-8")
         elif self.path == "/initial":
             self._send(200, _INITIAL if _INITIAL else "null")
+        elif self.path.startswith("/demo"):
+            from urllib.parse import urlparse, parse_qs
+            name = (parse_qs(urlparse(self.path).query).get("name") or [""])[0]
+            try:
+                data = build_demo(name)
+                self._send(200, json.dumps({"viz": data}))
+            except Exception as e:
+                self._send(200, json.dumps({"viz": None, "error": str(e)}))
         else:
             self._send(404, "not found", "text/plain")
 
