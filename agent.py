@@ -25,7 +25,7 @@ except ImportError:
 import flysim
 import visualize
 
-MODEL = "gemma4:e4b"   # your local Gemma 4; try "gemma4:e2b" for a lighter/faster run
+MODEL = "gemma4:latest"   # your local Gemma 4; try "gemma3:4b" for a lighter/faster run
 
 
 def _tool_visualize(query="sugar", dur_ms=200, seeds=30):

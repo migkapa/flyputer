@@ -59,6 +59,14 @@
   #truth tr.on { background: rgba(74,222,128,.16); }
   #truth td.out1 { color: #6ef0a0; font-weight: 700; }
   #truth td.out0 { color: #6f7ca0; }
+  #truth .rb { margin-top: 8px; display: flex; align-items: center; gap: 6px;
+    font-size: 11px; text-transform: capitalize; font-weight: 600; }
+  #truth .rb .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  #truth .rb .rbn { margin-left: auto; color: #6f7ca0; font-size: 10.5px;
+    font-weight: 400; text-transform: none; font-variant-numeric: tabular-nums; }
+  #truth .rb.robust { color: #6ef0a0; } #truth .rb.robust .dot { background: #6ef0a0; }
+  #truth .rb.stable { color: #ffce7a; } #truth .rb.stable .dot { background: #ffce7a; }
+  #truth .rb.fragile { color: #ff7a59; } #truth .rb.fragile .dot { background: #ff7a59; }
   #math .th { font-size: 10.5px; color: #8893b4; margin-bottom: 5px;
     text-transform: uppercase; letter-spacing: .4px; }
   #math .msum { font-size: 19px; color: #e9eefc; margin: 2px 0 3px;
@@ -268,7 +276,15 @@ function setGate(g){
     const a=g.rows[i][0], b=g.rows[i][1], o=(g.truth[i]>0)?1:0;
     h += '<tr data-r="'+i+'"><td>'+a+'</td><td>'+b+'</td><td class="out'+o+'">'+o+'</td></tr>';
   }
-  el.innerHTML = h + '</table>';
+  h += '</table>';
+  if (g.robustness){
+    const w = (g.plateau_width!=null) ? g.plateau_width.toFixed(2) : '?';
+    const gn = (g.gain!=null) ? g.gain.toFixed(2) : '?';
+    h += '<div class="rb ' + g.robustness + '">'
+      + '<span class="dot"></span>' + g.robustness
+      + '<span class="rbn">gain ' + gn + ' &middot; stable band &plusmn;' + w + '</span></div>';
+  }
+  el.innerHTML = h;
   el.style.display = 'block';
 }
 

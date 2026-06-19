@@ -213,6 +213,18 @@ def build_data(query="olfactory", limit=40, dur_ms=200, heroes=6):
     }
 
 
+def _robustness_label(width):
+    """Turn a gate's gain-plateau width (from logic.find_gate) into a one-word verdict.
+    A wider band of gains that all compute the gate = a more robust, less knife-edge gate."""
+    if width is None:
+        return None
+    if width >= 0.5:
+        return "robust"
+    if width >= 0.3:
+        return "stable"
+    return "fragile"
+
+
 def build_gate_scene(gate, phase_ms=200):
     """3D scene for a logic gate: A/B/O as real arbors, cycling through the four input
     combinations on one looped timeline, plus the truth table and energy ledger.
@@ -266,6 +278,8 @@ def build_gate_scene(gate, phase_ms=200):
         "neurons": neurons, "edges": [], "ghost": _ghost(), "heroes": heroes,
         "energy": energy.summary(ev),
         "gate": {"kind": gate["kind"], "labels": labels, "truth": gate["truth"],
+                 "gain": gate.get("gain"), "plateau_width": gate.get("plateau_width"),
+                 "robustness": _robustness_label(gate.get("plateau_width")),
                  "phase_ms": phase_ms, "rows": [[0, 0], [1, 0], [0, 1], [1, 1]]},
     }
 
