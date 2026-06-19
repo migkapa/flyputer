@@ -38,6 +38,7 @@ Act by emitting exactly ONE JSON object per turn, nothing else:
   {"tool": "show_path", "args": {"start": "sugar", "end": "motor"}}
   {"tool": "dodge_swatter", "args": {}}
   {"tool": "two_smells", "args": {}}
+  {"tool": "show_eye", "args": {"pattern": "heart"}}
   {"tool": "find_neurons", "args": {"query": "mushroom body"}}
   {"final": "your short, friendly plain-English answer"}
 
@@ -85,6 +86,12 @@ Tools:
   catastrophic forgetting that plagues dense neural nets. Use when the user asks about smell
   memory, learning, the mushroom body, Kenyon cells, sparse coding, or forgetting. (Mechanism
   demo, not a benchmark — be honest that a dense net on random odors can separate them too.)
+- show_eye(pattern): relay a picture through the fly's REAL optic lobe — paint it on the L1
+  lamina (~789 columns), send it along ~66k real L1->Mi1 synapses, and watch it reappear in
+  the medulla. pattern is "heart", "smiley", "f", "gradient", or "checker". Shows the lit
+  cells in 3D + the input vs medulla images. Use when the user asks about vision, the eye,
+  seeing an image, the optic lobe, lamina/medulla, or "show X on the fly's eye". (Honest: a
+  ~750-column retinotopic sensor / brain's-eye view, NOT a camera; no real optics or motion.)
 - find_neurons(query): look up neurons by name/region.
 
 Every scene comes back with an energy ledger comparing the fly brain to a computer chip.
@@ -213,8 +220,19 @@ def run_agent(message, max_steps=8):
                         % (100 * sn["overlap"])}
 
     tools["show_path"] = show_path
+    def show_eye(pattern="heart"):
+        p = str(pattern).lower().strip()
+        data = export3d.build_optic_scene(p if p in ("heart", "smiley", "f", "gradient", "checker") else "heart")
+        viz["data"] = data
+        o = data["optic"]
+        return {"shown_in_3d": True, "scene": "optic", "pattern": o["pattern"],
+                "lamina_columns": o["n_l1"], "medulla_cells": o["n_mi"], "relay_synapses": o["n_syn"],
+                "note": "an image relayed through the real L1->Mi1 retinotopic wiring; a "
+                        "~750-column brain's-eye view, not a camera"}
+
     tools["dodge_swatter"] = dodge_swatter
     tools["two_smells"] = two_smells
+    tools["show_eye"] = show_eye
     msgs = [{"role": "system", "content": SYSTEM},
             {"role": "user", "content": message}]
     for _ in range(max_steps):
@@ -321,6 +339,11 @@ def serve(open_browser=True):
         try:
             import sniff
             sniff.circuit()               # warm the olfactory-learning slice
+        except Exception:
+            pass
+        try:
+            import optic
+            optic.optic()                 # warm the retinotopic relay
         except Exception:
             pass
     threading.Thread(target=_warm, daemon=True).start()

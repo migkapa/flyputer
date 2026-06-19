@@ -156,6 +156,17 @@
   #sniff .row { display: flex; justify-content: space-between; font-size: 11px; color: #cdd6ee; margin: 3px 0; }
   #sniff .row b { color: #7fd1a8; font-variant-numeric: tabular-nums; }
   #sniff .snote { margin-top: 7px; font-size: 10px; color: #8893b4; line-height: 1.35; }
+  #optic { background: rgba(14,18,30,.74); backdrop-filter: blur(8px);
+    border: 1px solid rgba(120,140,190,.16); border-radius: 12px; padding: 11px 13px;
+    width: 196px; pointer-events: auto; }
+  #optic .th { font-size: 11px; color: #cdd6ee; margin-bottom: 8px; }
+  #optic .pair { display: flex; gap: 8px; align-items: center; justify-content: center; }
+  #optic .cell { text-align: center; }
+  #optic .cell .lab { font-size: 9px; color: #8893b4; margin-top: 3px; }
+  #optic svg.grid { width: 78px; height: 78px; background: rgba(0,0,0,.25); border-radius: 4px;
+    border: 1px solid rgba(120,140,190,.12); }
+  #optic .arrow { color: #6f7ca0; font-size: 14px; }
+  #optic .onote { margin-top: 8px; font-size: 10px; color: #8893b4; line-height: 1.35; }
   #math .th { font-size: 10.5px; color: #8893b4; margin-bottom: 5px;
     text-transform: uppercase; letter-spacing: .4px; }
   #math .msum { font-size: 19px; color: #e9eefc; margin: 2px 0 3px;
@@ -203,7 +214,7 @@
         <span><i class="dot" style="color:#5a6a96;background:#5a6a96"></i> full brain</span>
       </div>
     </div>
-    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div><div id="compass"></div><div id="arena"></div><div id="path"></div><div id="swatter"></div><div id="sniff"></div></div>
+    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div><div id="compass"></div><div id="arena"></div><div id="path"></div><div id="swatter"></div><div id="sniff"></div><div id="optic"></div></div>
     <div id="empty">the brain will appear here when you ask a question</div>
     <div id="tip"></div>
     <div id="hud">
@@ -566,6 +577,33 @@ function setSniff(sn){
   el.style.display = 'block';
 }
 
+function _gridSVG(img){
+  const n = img.length, cell = 100 / n;
+  let r = '';
+  for (let y=0;y<n;y++) for (let x=0;x<n;x++){
+    const v = img[y][x];
+    if (v > 0.04) r += '<rect x="'+(x*cell).toFixed(2)+'" y="'+(y*cell).toFixed(2)+'" width="'
+      +(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#6ef0a0" opacity="'
+      +Math.min(1,0.15+v).toFixed(2)+'"/>';
+  }
+  return '<svg viewBox="0 0 100 100" class="grid">'+r+'</svg>';
+}
+
+function setOptic(o){
+  const el = document.getElementById('optic');
+  if (!o || !o.input){ el.style.display = 'none'; return; }
+  el.innerHTML = '<div class="th">the fly’s eye: ' + o.pattern + '</div>'
+    + '<div class="pair">'
+    +   '<div class="cell">' + _gridSVG(o.input) + '<div class="lab">lamina (in)</div></div>'
+    +   '<span class="arrow">→</span>'
+    +   '<div class="cell">' + _gridSVG(o.medulla) + '<div class="lab">medulla</div></div>'
+    + '</div>'
+    + '<div class="onote">the picture travels ' + o.n_l1 + ' lamina columns → '
+    + o.n_mi + ' medulla cells along ' + o.n_syn.toLocaleString() + ' real synapses. a ~750-column '
+    + 'brain’s-eye view — not a camera, no optics/motion modelled.</div>';
+  el.style.display = 'block';
+}
+
 function setData(D){
   document.getElementById('empty').style.display = 'none';
   if (D.ghost) buildGhost(D.ghost);
@@ -633,14 +671,15 @@ function setData(D){
   DUR = D.dur_ms; tNow = 0; holdT = 0;
   document.getElementById('cap').textContent = D.math
     ? 'the fly-neuron gates that did the math'
-    : (D.sniff ? 'odor A lights up, then odor B — different cells'
+    : (D.optic ? 'a picture travels lamina → medulla on real wiring'
+       : (D.sniff ? 'odor A lights up, then odor B — different cells'
        : (D.swatter ? 'looming detectors converge on the Giant Fiber'
        : (D.path ? 'signal travels hop-by-hop along the wiring'
        : (D.fly ? 'exciting descending neurons → the body moves'
           : (D.compass ? 'cue → hold → turn: the heading bump on a loop'
              : (D.gate ? 'cycling every input combination'
                 : (D.neurons.length ? ('replaying the first ' + DUR + ' ms, on a loop')
-                                    : 'the whole brain, at rest')))))));
+                                    : 'the whole brain, at rest'))))))));
   setEnergy(D.energy);
   setGate(D.gate);
   setMath(D.math);
@@ -649,6 +688,7 @@ function setData(D){
   setPath(D.path);
   setSwatter(D.swatter);
   setSniff(D.sniff);
+  setOptic(D.optic);
   if (D.path && D.path.found && lines) lines.visible = true;   // the chain IS the point
 }
 

@@ -578,6 +578,50 @@ def build_sniff_scene(seedA=1, seedB=2, phase_ms=260):
     }
 
 
+def build_optic_scene(pattern="heart", phase_ms=280, grid=22):
+    """3D scene of a picture relayed through the fly's real optic lobe: the image lights up the
+    L1 lamina columns (input), then travels along the real ~66k-synapse L1→Mi1 wiring into the
+    medulla (output). Lit cells sit at their TRUE 3D soma positions. Returns the neurons + an
+    `optic` block with the input and medulla images (for a side-by-side pixel panel)."""
+    import optic
+    O = optic.optic()
+    r = optic.relay(pattern)
+    P = _positions()
+    c, s = _transform()
+    drive, mi_act = r["l1_drive"], r["mi_act"]
+
+    neurons = []
+    for i, nid in enumerate(O["l1"]):                 # lit lamina columns (the input image)
+        if drive[i] > 0.5 and nid in P:
+            x, y, z = (np.array(P[nid]) - c) * s
+            neurons.append({"x": round(float(x), 2), "y": round(float(y), 2), "z": round(float(z), 2),
+                            "role": "input", "type": "L1 lamina", "t": [20.0]})
+    thr = 0.45 * (mi_act.max() if mi_act.max() else 1.0)
+    for j, nid in enumerate(O["mi"]):                 # lit medulla cells (the relayed image)
+        if mi_act[j] > thr and nid in P:
+            x, y, z = (np.array(P[nid]) - c) * s
+            neurons.append({"x": round(float(x), 2), "y": round(float(y), 2), "z": round(float(z), 2),
+                            "role": "output", "type": "Mi1 medulla", "t": [20.0 + phase_ms]})
+
+    in_img = optic.raster(O["l1g"], drive, grid)
+    out_img = optic.raster(O["mig"], mi_act, grid)
+    n_syn = int(O["W"].sum())
+    return {
+        "title": "A picture on the fly's optic lobe: %s" % pattern,
+        "query": "optic", "dur_ms": 2 * phase_ms,
+        "n_input": sum(1 for n in neurons if n["role"] == "input"),
+        "n_downstream": sum(1 for n in neurons if n["role"] == "output"),
+        "top_downstream_types": ["Mi1 medulla"],
+        "neurons": neurons, "edges": [], "ghost": _ghost(), "heroes": [],
+        "optic": {
+            "pattern": pattern, "n_l1": len(O["l1"]), "n_mi": len(O["mi"]), "n_syn": n_syn,
+            "phase_ms": phase_ms,
+            "input": [[round(float(v), 2) for v in row] for row in in_img],
+            "medulla": [[round(float(v), 2) for v in row] for row in out_img],
+        },
+    }
+
+
 def build_swatter_scene(demo_swing_ms=220):
     """3D scene of the real escape circuit reacting to a looming swatter: LPLC2+LC4 detectors
     charge and CONVERGE onto the 2 Giant Fiber (DNp01) cells, which spike -> lunge. Returns
