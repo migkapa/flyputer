@@ -281,9 +281,11 @@
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 // ---------------- 3D viewer ----------------
 let scene, camera, renderer, controls, points = null, geo = null, lines = null, ghostPoints = null, heroes = [], gatePhaseMs = 0;
+let fly3d = null, fly3dWings = null, flyPhase = 0, food3d = [];   // the pilotable 3D fly model
 let glow = null, spikes = [], ptr = null, DUR = 200, tNow = 0, holdT = 0;
 const clock = new THREE.Clock();
 const IN = new THREE.Color(0xff8a2a), DN = new THREE.Color(0x3aa0ff), OUT = new THREE.Color(0x4ade80);
@@ -292,6 +294,8 @@ function initViewer(){
   const viz = document.getElementById('viz');
   scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x05060a, 0.0026);
+  scene.add(new THREE.AmbientLight(0x8ea0c8, 0.75));            // light the 3D fly model (points ignore lights)
+  const _dl = new THREE.DirectionalLight(0xffffff, 0.85); _dl.position.set(80, 160, 220); scene.add(_dl);
   camera = new THREE.PerspectiveCamera(55, viz.clientWidth/viz.clientHeight, 1, 4000);
   camera.position.set(0, 30, 320);
   renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -656,10 +660,73 @@ function renderFood(p){
   for (const f of p.food) h += '<circle class="food" cx="'+p.toX(f[0]).toFixed(1)+'" cy="'+p.toY(f[1]).toFixed(1)+'" r="2.2"/>';
   p.foodEl.innerHTML = h;
 }
+
+// A procedural low-poly fly (body + head + red eyes + flapping wings). No external asset, no
+// licensing — drop a real glTF in via loadFlyGLB() later if desired (GLTFLoader is included).
+// Built FLAT (dorsal / top-down view), forward = +X, wings spread in ±Y, so it flies in the
+// screen plane in front of the brain and reads clearly. Flap lifts the wings toward the camera.
+function buildFlyModel(){
+  const g = new THREE.Group();
+  const body = new THREE.MeshLambertMaterial({ color: 0x767c46, emissive: 0x16180b });
+  const headM = new THREE.MeshLambertMaterial({ color: 0x3c3e28, emissive: 0x0c0d05 });
+  const eyeM = new THREE.MeshLambertMaterial({ color: 0xe84a30, emissive: 0x7a1808 });
+  const wingM = new THREE.MeshLambertMaterial({ color: 0xd2e3f8, transparent: true,
+    opacity: 0.45, side: THREE.DoubleSide, depthWrite: false, emissive: 0x1c2638 });
+  function ell(r, sx, sy, sz, mat, x, y, z){
+    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 14), mat);
+    m.scale.set(sx, sy, sz); m.position.set(x, y, z); g.add(m); return m;
+  }
+  ell(3.2, 1.5, 1.0, 0.95, body, 0, 0, 0);         // thorax
+  ell(3.0, 2.4, 0.95, 0.85, body, -7, 0, 0);       // abdomen (toward -X)
+  ell(2.3, 1.0, 1.0, 0.9, headM, 5.6, 0, 0);       // head (+X)
+  ell(1.3, 1, 1, 0.9, eyeM, 6.1, 1.5, 0.6);        // eyes (left/right of head)
+  ell(1.3, 1, 1, 0.9, eyeM, 6.1, -1.5, 0.6);
+  const wings = [];
+  for (const side of [1, -1]){
+    const piv = new THREE.Group(); piv.position.set(-0.5, 0, 0.5);
+    const w = new THREE.Mesh(new THREE.CircleGeometry(5.5, 20), wingM);
+    w.scale.set(1.6, 0.8, 1);
+    w.position.set(-3, side * 5.0, 0);             // spread in ±Y, swept back, flat in XY
+    piv.add(w); g.add(piv); wings.push(piv);
+  }
+  g.scale.setScalar(2.3);
+  return { group: g, wings };
+}
+
+// Drop in a real fly: loadFlyGLB('models/fly.glb') swaps the procedural model for a glTF.
+// e.g. the CC-BY micro-CT Drosophila (credit the author) or a CC0 Poly Pizza fly.
+function loadFlyGLB(url){
+  if (!THREE.GLTFLoader) return;
+  new THREE.GLTFLoader().load(url, function(gltf){
+    const m = gltf.scene;
+    const box = new THREE.Box3().setFromObject(m), sz = box.getSize(new THREE.Vector3());
+    m.scale.setScalar(28 / Math.max(sz.x, sz.y, sz.z, 1e-3));   // normalize to fly-marker size
+    if (fly3d) scene.remove(fly3d);
+    fly3d = m; fly3dWings = null; scene.add(fly3d);              // built-in anims via AnimationMixer if present
+    fly3d.visible = !!window._pilot;
+  });
+}
+
+const PFOOD = new THREE.MeshLambertMaterial({ color: 0xffce6a, emissive: 0x4a3408 });
+function pilotShow3d(p){
+  if (!fly3d){ const fm = buildFlyModel(); fly3d = fm.group; fly3dWings = fm.wings; scene.add(fly3d); }
+  fly3d.visible = true;
+  for (const m of food3d){ scene.remove(m); m.geometry.dispose(); }
+  food3d = [];
+  for (const f of p.food){
+    const m = new THREE.Mesh(new THREE.SphereGeometry(3.4, 14, 12), PFOOD);
+    m.position.set(f[0] * 70, f[1] * 52 + 12, 55); scene.add(m); food3d.push(m);
+  }
+}
+function pilotHide3d(){
+  if (fly3d) fly3d.visible = false;
+  for (const m of food3d){ scene.remove(m); m.geometry.dispose(); }
+  food3d = [];
+}
 function setPilot(pl){
   const el = document.getElementById('pilot');
   if (!pl || !pl.controls){
-    el.style.display = 'none'; window._pilot = null;
+    el.style.display = 'none'; window._pilot = null; pilotHide3d();
     window.removeEventListener('keydown', _pilotKeydown);
     window.removeEventListener('keyup', _pilotKeyup);
     return;
@@ -669,9 +736,9 @@ function setPilot(pl){
     + '<svg viewBox="0 0 100 100" class="field"><rect class="afld" x="6" y="6" width="88" height="88" rx="4"/>'
     +   '<g class="foodg"></g><path class="flyb" d="M6,0 L-4,-3.4 L-4,3.4 Z" transform="translate(50,50)"/></svg>'
     + '<div class="keys"><b>↑</b> fwd · <b>↓</b> back · <b>←/→</b> steer · <b>space</b> escape</div>'
-    + '<div class="msg">click here, then fly with the keys</div>'
-    + '<div class="pnote">each key fires a real command neuron (DNp09 / MDN / DNa02 / DNp01) — they '
-    + 'glow in 3D as you fly. the body is a stand-in for the unloaded VNC.</div>';
+    + '<div class="msg">fly the 3D fly with the keys (this panel is a minimap)</div>'
+    + '<div class="pnote">a real 3D fly flies in the scene; each key fires a real command neuron '
+    + '(DNp09 / MDN / DNa02 / DNp01), which glows. the body is a stand-in for the unloaded VNC.</div>';
   el.style.display = 'block';
   el.tabIndex = 0;
   window._pilot = {
@@ -681,6 +748,7 @@ function setPilot(pl){
     scoreEl: el.querySelector('.score b'), msgEl: el.querySelector('.msg'),
   };
   renderFood(window._pilot);
+  pilotShow3d(window._pilot);
   window.removeEventListener('keydown', _pilotKeydown);
   window.removeEventListener('keyup', _pilotKeyup);
   window.addEventListener('keydown', _pilotKeydown);
@@ -702,10 +770,20 @@ function tickPilot(dt){
   for (let i = p.food.length - 1; i >= 0; i--){
     if (Math.hypot(p.fx - p.food[i][0], p.fy - p.food[i][1]) < 0.1){
       p.food.splice(i, 1); p.score++; p.scoreEl.textContent = p.score; renderFood(p);
+      if (food3d[i]){ scene.remove(food3d[i]); food3d[i].geometry.dispose(); food3d.splice(i, 1); }
     }
   }
   p.flyEl.setAttribute('transform', 'translate(' + p.toX(p.fx).toFixed(1) + ',' + p.toY(p.fy).toFixed(1)
     + ') rotate(' + (-p.fth * 180 / Math.PI).toFixed(1) + ')');
+  // drive the real 3D fly model: position on the plane, yaw to heading, bank into turns, flap wings
+  if (fly3d){
+    fly3d.position.set(p.fx * 70, p.fy * 52 + 12, 55);    // fly in the screen plane, in front of the brain
+    fly3d.rotation.z = p.fth;                              // face the travel direction
+    fly3d.rotation.y = Math.max(-0.4, Math.min(0.4, w * 0.12));   // slight bank into turns
+    flyPhase += dts * (9 + Math.abs(v) * 12);
+    const flap = 0.55 + 0.8 * Math.sin(flyPhase);
+    if (fly3dWings){ fly3dWings[0].rotation.x = flap; fly3dWings[1].rotation.x = -flap; }
+  }
   if (glow){ for (const i of glowIdx) if (i < glow.length) glow[i] = 1.0; }
   if (!p.food.length && !p.won){ p.won = true; p.msgEl.textContent = 'all food caught! 🪰 nice flying'; }
 }
