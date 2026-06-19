@@ -540,6 +540,65 @@ def build_path_scene(start, end, min_syn=5, hop_ms=280):
     }
 
 
+def build_swatter_scene(demo_swing_ms=220):
+    """3D scene of the real escape circuit reacting to a looming swatter: LPLC2+LC4 detectors
+    charge and CONVERGE onto the 2 Giant Fiber (DNp01) cells, which spike -> lunge. Returns
+    neurons + spike timeline, the energy of the escape decision, and a `swatter` game block
+    (swing->outcome curve + the fly's reaction threshold) so the browser can run the game."""
+    import swatter
+    C = swatter.circuit()
+    nodes = C["nodes"]
+    loom_set, gf_set = set(C["loom_ids"]), set(C["gf_ids"])
+    r = swatter.run_loom(demo_swing_ms, record=True)     # a round the fly wins (GF fires)
+    counts, st, si = r["counts"], r["st"], r["si"]
+
+    spk = {}
+    for t, ni in zip(st.tolist(), si.tolist()):
+        spk.setdefault(int(ni), []).append(round(float(t), 1))
+
+    P = _positions()
+    c, s = _transform()
+    active = [k for k in range(len(nodes)) if counts[k] > 0 and nodes[k] in P]
+    neurons = []
+    for k in active:
+        nid = nodes[k]
+        x, y, z = (np.array(P[nid]) - c) * s
+        ts = spk.get(k, [])
+        if len(ts) > 120:
+            ts = ts[::max(1, len(ts) // 120)]
+        role = "output" if nid in gf_set else ("input" if nid in loom_set else "downstream")
+        neurons.append({"x": round(float(x), 2), "y": round(float(y), 2), "z": round(float(z), 2),
+                        "role": role, "type": flysim.LABEL.get(nid, "?"), "t": ts})
+
+    heroes = []
+    for nid in list(C["gf_ids"]) + [n for n in C["loom_ids"] if counts[C["idx"][n]] > 0][:4]:
+        pts = _hero_arbor(nid)
+        if pts:
+            role = "output" if nid in gf_set else "input"
+            heroes.append({"role": role, "type": flysim.LABEL.get(nid, "?"),
+                           "t": spk.get(C["idx"][nid], []), "pts": pts})
+
+    threshold = swatter.escape_threshold()
+    curve = swatter.game_curve()
+    ev = energy.synaptic_events(counts, C["W"])
+    dense = energy.dense_synapse_updates(C["W"], demo_swing_ms, counts)
+    return {
+        "title": "Dodge the swatter: the fly's real escape circuit",
+        "query": "swatter", "dur_ms": demo_swing_ms,
+        "n_input": sum(1 for n in neurons if n["role"] == "input"),
+        "n_downstream": sum(1 for n in neurons if n["role"] != "input"),
+        "top_downstream_types": ["DNp01 (Giant Fiber)"],
+        "neurons": neurons, "edges": [], "ghost": _ghost(), "heroes": heroes,
+        "energy": energy.summary(ev, dense),
+        "swatter": {
+            "dur_ms": demo_swing_ms, "n_detectors": len(loom_set), "n_gf": len(gf_set),
+            "gf_spike_t": r["gf_spike_t"], "demo_swing_ms": demo_swing_ms,
+            "demo_escaped": bool(r["gf_spike_t"] is not None and r["gf_spike_t"] < demo_swing_ms),
+            "threshold_ms": threshold, "curve": curve,
+        },
+    }
+
+
 def build_math_scene(x, y, op="add", phase_ms=200):
     """3D scene of the fly-neuron 'calculator' computing x (+ or x) y: the gate motif
     neurons as arbors, plus the binary result and the energy the computation cost."""

@@ -122,6 +122,29 @@
   #path .syn { font-size: 9.5px; color: #6f7ca0; margin: 0 0 0 3px; padding-left: 3px;
     border-left: 1px dashed rgba(120,140,190,.3); }
   #path .pnote { margin-top: 8px; font-size: 10px; color: #8893b4; line-height: 1.35; }
+  #swatter { background: rgba(14,18,30,.78); backdrop-filter: blur(8px);
+    border: 1px solid rgba(120,140,190,.16); border-radius: 12px; padding: 11px 13px;
+    width: 196px; pointer-events: auto; }
+  #swatter .th { font-size: 11px; color: #cdd6ee; margin-bottom: 6px; display: flex; justify-content: space-between; }
+  #swatter .score { color: #8893b4; font-variant-numeric: tabular-nums; }
+  #swatter .score b.you { color: #6ef0a0; } #swatter .score b.fly { color: #ff7a59; }
+  #swatter svg.ar { width: 170px; height: 92px; display: block; margin: 2px auto 6px; }
+  #swatter .afld { fill: rgba(120,140,190,.05); stroke: rgba(120,140,190,.2); stroke-width: .8; }
+  #swatter .loom { fill: rgba(255,122,89,.18); stroke: #ff7a59; stroke-width: 1.2; }
+  #swatter .flyb { fill: #6ef0a0; stroke: #0e1220; stroke-width: .6; }
+  #swatter .meter { position: relative; height: 13px; border-radius: 7px;
+    background: linear-gradient(90deg, rgba(110,240,160,.30) 0%, rgba(110,240,160,.30) var(--gz,27%), rgba(120,140,190,.12) var(--gz,27%)); overflow: hidden; }
+  #swatter .meter .mk { position: absolute; top: -1px; width: 3px; height: 15px; background: #fff;
+    border-radius: 2px; box-shadow: 0 0 5px #fff; }
+  #swatter .meter .gzl { position: absolute; top: 0; bottom: 0; width: 1px; background: #6ef0a0; left: var(--gz,27%); }
+  #swatter .mrow { display: flex; gap: 6px; align-items: center; margin-top: 7px; }
+  #swatter .mrow .lab { font-size: 8.5px; color: #6f7ca0; }
+  #swatter button.swat { flex: 1; background: #ff7a59; color: #1a0f0a; border: 0; font-weight: 800;
+    border-radius: 8px; padding: 6px 0; cursor: pointer; font-size: 12px; letter-spacing: .04em; }
+  #swatter button.swat:active { transform: translateY(1px); }
+  #swatter .out { margin-top: 7px; font-size: 11px; min-height: 28px; line-height: 1.3; }
+  #swatter .out.win { color: #6ef0a0; } #swatter .out.lose { color: #ff7a59; }
+  #swatter .snote { margin-top: 6px; font-size: 9.5px; color: #8893b4; line-height: 1.3; }
   #math .th { font-size: 10.5px; color: #8893b4; margin-bottom: 5px;
     text-transform: uppercase; letter-spacing: .4px; }
   #math .msum { font-size: 19px; color: #e9eefc; margin: 2px 0 3px;
@@ -169,7 +192,7 @@
         <span><i class="dot" style="color:#5a6a96;background:#5a6a96"></i> full brain</span>
       </div>
     </div>
-    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div><div id="compass"></div><div id="arena"></div><div id="path"></div></div>
+    <div id="rpanel"><div id="energy"></div><div id="math"></div><div id="truth"></div><div id="compass"></div><div id="arena"></div><div id="path"></div><div id="swatter"></div></div>
     <div id="empty">the brain will appear here when you ask a question</div>
     <div id="tip"></div>
     <div id="hud">
@@ -187,7 +210,7 @@
       <button>What happens when the fly smells something?</button>
       <button>Show an AND gate in the brain</button>
       <button>Trace the path from sugar to motor</button>
-      <button>How does smell connect to escape?</button>
+      <button>Let me try to swat the fly</button>
       <button>Add 2 + 3 with the fly brain</button>
     </div>
     <form id="form">
@@ -449,6 +472,73 @@ function updatePath(t){
   for (let i=0;i<nodes.length;i++) nodes[i].classList.toggle('on', i <= reached);
 }
 
+function setSwatter(sw){
+  const el = document.getElementById('swatter');
+  if (!sw || !sw.curve || !sw.curve.length){ el.style.display = 'none'; window._swatter = null; return; }
+  const speeds = sw.curve.map(c => c.swing_ms);
+  const lo = Math.min(...speeds), hi = Math.max(...speeds);
+  const thr = sw.threshold_ms || hi;
+  const gz = Math.max(6, Math.min(94, 100 * (thr - lo) / (hi - lo)));   // green (win) zone width %
+  el.style.setProperty('--gz', gz.toFixed(0) + '%');
+  el.innerHTML =
+    '<div class="th"><span>dodge the swatter</span><span class="score">you <b class="you">0</b> · fly <b class="fly">0</b></span></div>'
+    + '<svg viewBox="0 0 100 54" class="ar"><rect class="afld" x="2" y="2" width="96" height="50" rx="4"/>'
+    +   '<circle class="loom" cx="50" cy="27" r="0"/><path class="flyb" d="M50,27 m-3,0 l6,-3 l0,6 z"/></svg>'
+    + '<div class="meter"><span class="gzl"></span><span class="mk" style="left:0%"></span></div>'
+    + '<div class="mrow"><span class="lab">fast</span>'
+    +   '<button class="swat">SWAT</button><span class="lab">slow</span></div>'
+    + '<div class="out">stop the marker in the <b style="color:#6ef0a0">green</b> — swing faster than the fly can react.</div>'
+    + '<div class="snote">the real Giant Fiber escapes any swing slower than its reaction limit (~' + thr + ' units). order of events only, not a calibrated latency.</div>';
+  el.style.display = 'block';
+  window._swatter = {
+    curve: sw.curve, lo, hi, thr, value: 0, dir: 1, frozen: false,
+    score: { you: 0, fly: 0 },
+    mk: el.querySelector('.mk'), loom: el.querySelector('.loom'), flyb: el.querySelector('.flyb'),
+    out: el.querySelector('.out'), youB: el.querySelector('b.you'), flyB: el.querySelector('b.fly'),
+  };
+  el.querySelector('button.swat').onclick = swatNow;
+}
+
+function tickSwatter(){
+  const s = window._swatter;
+  if (!s || s.frozen) return;
+  s.value += s.dir * 0.022;                 // sweep speed
+  if (s.value >= 1){ s.value = 1; s.dir = -1; }
+  else if (s.value <= 0){ s.value = 0; s.dir = 1; }
+  s.mk.style.left = (s.value * 100).toFixed(1) + '%';
+}
+
+function swatNow(){
+  const s = window._swatter;
+  if (!s || s.frozen) return;
+  s.frozen = true;
+  const swing = Math.round(s.lo + s.value * (s.hi - s.lo));
+  let best = s.curve[0];
+  for (const c of s.curve) if (Math.abs(c.swing_ms - swing) < Math.abs(best.swing_ms - swing)) best = c;
+  const escaped = best.escaped;
+  // animate loom disc growing toward the fly
+  let r = 0; const grow = setInterval(() => {
+    r += 2.2; s.loom.setAttribute('r', r.toFixed(1));
+    if (r >= 26){ clearInterval(grow);
+      if (escaped){ s.flyb.style.transition='transform .18s'; s.flyb.style.transform='translate(22px,-12px)'; s.flyb.style.opacity=.2; }
+    }
+  }, 14);
+  if (escaped){
+    s.score.fly++; s.out.className = 'out lose';
+    s.out.innerHTML = 'SWAT at <b>' + swing + '</b> — too slow. The Giant Fiber fired at <b>'
+      + Math.round((best.gf_frac||0.9)*100) + '%</b> of your swing and the fly was gone. <b>It escaped.</b>';
+  } else {
+    s.score.you++; s.out.className = 'out win';
+    s.out.innerHTML = 'SWAT at <b>' + swing + '</b> — faster than the circuit could react. The Giant Fiber never fired. <b>Got it! 🪰</b>';
+  }
+  s.youB.textContent = s.score.you; s.flyB.textContent = s.score.fly;
+  setTimeout(() => {                         // reset for the next round
+    s.loom.setAttribute('r', '0');
+    s.flyb.style.transition=''; s.flyb.style.transform=''; s.flyb.style.opacity='1';
+    s.frozen = false;
+  }, 1400);
+}
+
 function setData(D){
   document.getElementById('empty').style.display = 'none';
   if (D.ghost) buildGhost(D.ghost);
@@ -516,18 +606,20 @@ function setData(D){
   DUR = D.dur_ms; tNow = 0; holdT = 0;
   document.getElementById('cap').textContent = D.math
     ? 'the fly-neuron gates that did the math'
-    : (D.path ? 'signal travels hop-by-hop along the wiring'
+    : (D.swatter ? 'looming detectors converge on the Giant Fiber'
+       : (D.path ? 'signal travels hop-by-hop along the wiring'
        : (D.fly ? 'exciting descending neurons → the body moves'
           : (D.compass ? 'cue → hold → turn: the heading bump on a loop'
              : (D.gate ? 'cycling every input combination'
                 : (D.neurons.length ? ('replaying the first ' + DUR + ' ms, on a loop')
-                                    : 'the whole brain, at rest')))));
+                                    : 'the whole brain, at rest'))))));
   setEnergy(D.energy);
   setGate(D.gate);
   setMath(D.math);
   setCompass(D.compass);
   setFly(D.fly);
   setPath(D.path);
+  setSwatter(D.swatter);
   if (D.path && D.path.found && lines) lines.visible = true;   // the chain IS the point
 }
 
@@ -560,6 +652,7 @@ function frame(){
     if (window._fly){ updateFly(tNow); }
     if (window._path){ updatePath(tNow); }
   }
+  if (window._swatter){ tickSwatter(); }
   controls.update();
   renderer.render(scene, camera);
 }

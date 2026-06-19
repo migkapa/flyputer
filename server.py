@@ -36,6 +36,7 @@ Act by emitting exactly ONE JSON object per turn, nothing else:
   {"tool": "move_fly", "args": {"moves": ["forward", "left", "forward", "escape"]}}
   {"tool": "navigate_fly", "args": {"start_heading": 120}}
   {"tool": "show_path", "args": {"start": "sugar", "end": "motor"}}
+  {"tool": "dodge_swatter", "args": {}}
   {"tool": "find_neurons", "args": {"query": "mushroom body"}}
   {"final": "your short, friendly plain-English answer"}
 
@@ -72,6 +73,11 @@ Tools:
   apart two neurons are), NOT firing/timing — say "A shortest path", never "the" path, and
   never claim signal timing. Use when the user asks how two things connect, how far apart
   neurons are, what links X to Y, or to trace/route a signal across the brain.
+- dodge_swatter(): launch the PLAYABLE escape game — the user swats and the fly's REAL
+  looming circuit (LPLC2+LC4 detectors -> the Giant Fiber DNp01) decides if it jumps in time.
+  Shows the convergence funnel firing in 3D + an interactive swatter game (swing faster than
+  the fly's reaction limit to win). Use when the user wants to swat/hit the fly, play a game,
+  test the escape reflex, or asks about looming/the Giant Fiber/jumping/escape.
 - find_neurons(query): look up neurons by name/region.
 
 Every scene comes back with an energy ledger comparing the fly brain to a computer chip.
@@ -170,6 +176,17 @@ def run_agent(message, max_steps=8):
                 "n_synapses": p["n_synapses"], "chain": " -> ".join(p["hops"]),
                 "note": "a shortest wiring path (topology, not signal timing)"}
 
+    def dodge_swatter():
+        data = export3d.build_swatter_scene()
+        viz["data"] = data
+        sw = data["swatter"]
+        return {"shown_in_3d": True, "scene": "swatter", "playable": True,
+                "detectors": sw["n_detectors"], "giant_fiber": sw["n_gf"],
+                "reaction_threshold_ms": sw["threshold_ms"],
+                "note": "swing FASTER than the fly's ~%s-unit reaction limit to land it; "
+                        "slower and the real Giant Fiber escape circuit jumps first" % sw["threshold_ms"],
+                "energy": data["energy"]["headline"]}
+
     tools = dict(flysim.TOOLS)
     tools["show3d"] = show3d
     tools["show_logic_gate"] = show_logic_gate
@@ -178,6 +195,7 @@ def run_agent(message, max_steps=8):
     tools["move_fly"] = move_fly
     tools["navigate_fly"] = navigate_fly
     tools["show_path"] = show_path
+    tools["dodge_swatter"] = dodge_swatter
     msgs = [{"role": "system", "content": SYSTEM},
             {"role": "user", "content": message}]
     for _ in range(max_steps):
@@ -274,6 +292,11 @@ def serve(open_browser=True):
             pass
         try:
             flysim._ensure_adj()          # routing adjacency, so first show_path is instant
+        except Exception:
+            pass
+        try:
+            import swatter
+            swatter.circuit()             # warm the looming/escape subcircuit
         except Exception:
             pass
     threading.Thread(target=_warm, daemon=True).start()
