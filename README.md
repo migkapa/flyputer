@@ -105,8 +105,10 @@ No CAVE token, no `fafbseg`, no GPU — just the Zenodo file + the GitHub annota
 
 ## License / attribution
 
-FlyWire data is **CC BY-NC 4.0** (non-commercial). If you publish anything from this,
-cite **Dorkenwald et al., _Nature_ 2024** and **Schlegel et al., _Nature_ 2024**.
+- **Code:** MIT — see [`LICENSE`](LICENSE).
+- **Data:** the FlyWire connectome is **CC BY-NC 4.0 (non-commercial)**. See
+  [`CITATION.md`](CITATION.md) for the papers to cite and the non-commercial terms.
+- Independent hobby project — **not affiliated with the FlyWire consortium.**
 
 ## What's next
 
