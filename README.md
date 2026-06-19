@@ -74,6 +74,9 @@ Things to ask — each lights up the real connectome and comes back with an ener
 - **"Show a heart on the fly's eye"** — paint a picture onto the ~789 L1 lamina columns and
   it travels along ~66k real L1→Mi1 synapses into the medulla: a recognizable image glowing
   on the real optic lobe (a ~750-column brain's-eye view, not a camera). (`optic.py`)
+- **"Let me pilot the fly with the keyboard"** — a **playable game**: arrow keys / WASD fire
+  the real descending command neurons (DNp09 forward, MDN back, DNa02 steer, DNp01 escape) —
+  they glow in 3D as you fly a virtual fly around an arena foraging food. (`fly.py` pilot mode)
 
 ## Or use the pieces directly
 
